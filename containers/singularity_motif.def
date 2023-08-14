@@ -1,0 +1,41 @@
+Bootstrap: docker
+From: ubuntu:18.04
+
+%environment
+    export LC_ALL=C
+
+%post
+    # scripts to execute after downloading the specified docker image file
+    # install dependencies for MOTIF
+    apt update
+    apt install -y gcc g++ python python3 python3-pip git vim
+
+    # python-pip upgrade
+    pip3 install --upgrade pip
+
+    # install python dependencies
+    pip3 install Jinja2==3.0.3
+    pip3 install libclang==15.0.6.1
+    pip3 install psutil==5.9.2
+    pip3 install chardet==3.0.4
+
+    ### Get experiment reposiroty
+    ###   TODO: add commands to clone repositoriy (for deploying)
+    # git clone https://gitlab.uni.lu/faqas/MutationTestingWithFuzzing.git /expr
+    ###   TODO: Currently only provides the binding point
+    echo "Create mount points"
+    mkdir /expr
+    cd /expr
+
+
+#################################################
+# Instructions to generate singularity container file (sif)
+#################################################
+# The following command will create ubuntu.sif according to this definition file.
+# sudo singularity build ubuntu.sif singularity_ubuntu.def
+
+# create image without def file (we do not need sudo)
+# singularity build ubuntu.sif docker://ubuntu:18.04
+# if you want to make the image with sandbox mode, then you also can convert to the sif image
+# sudo singularity build --sandbox ubuntu_sandbox singularity_ubuntu.def
+# sudo singularity build ubuntu.sif ubuntu_sandbox

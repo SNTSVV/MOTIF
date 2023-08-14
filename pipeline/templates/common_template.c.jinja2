@@ -1,0 +1,317 @@
+{#- ----------------------------------------------------------- -#}
+{#- print return variable definitions of the function           -#}
+{#-    * returns:  dictionary for return information            -#}
+{#-    * origin_prefix:  prefix for original return variable    -#}
+{#-    * mutant_prefix:  prefix for original return variable    -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_return_var_definition(returns, origin_prefix='', mutant_prefix='') -%}
+{%- if "void" != returns.type -%}
+    /* Declare variable to hold function returned value */
+    {{ returns.type }} {{ origin_prefix }}_return;
+{%      if mutant_prefix != '' %}
+    {{ returns.type }} {{ mutant_prefix }}_return;
+{%     endif %}
+{%- endif -%}
+{%- endmacro -%}
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print variable definitions function for statements          -#}
+{#-    * params:  dictionary for parameters' information        -#}
+{#-    * prefix:  prefix for parameter names                    -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_variable_definition(params, prefix='') -%}
+    /* declaring the input variables for {{ prefix }} function */
+{%      for param in params -%}
+{%-     set param_name =  prefix+"_"+ param.name if prefix != "" else param.name -%}
+{%-         if param.array_size > 1 %}
+    {{ param.def_type }} {{ param_name }}[{{ param.array_size }}];
+{%         else %}
+    {{ param.def_type }} {{ param_name }};
+{%         endif -%}
+{%-         if param.struct != None -%}
+{%-             for field in param.struct.fields if field.user_defined == True %}
+    {{ field.type }} {{ param_name }}_{{ field.name }}[{{ field.size }}];
+{%             endfor -%}
+{%-         endif -%}
+{%-     endfor -%}
+{%- endmacro -%}
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print code for required length of intput                    -#}
+{#-    * params:  dictionary for parameters' information        -#}
+{#-    * prefix:  prefix for parameter names                    -#}
+{#-    * stop_option:  print option for error contition         -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_required_length(params, prefix='', stop_option="") -%}
+    /* check total size of input */
+    unsigned int required_length = 0;
+{%      for param in params %}
+{%          if param.struct != None %}
+{%              for field in param.struct.fields if field.user_defined == True %}
+    required_length += sizeof({{ prefix }}_{{ param.name }}_{{ field.name }});
+{%              endfor %}
+{%          else %}
+    required_length += sizeof({{ prefix }}_{{ param.name }});
+{%          endif -%}
+{%-      endfor %}
+
+{%      if stop_option == "" %}
+    // extend input data if it is required
+    if (TD_DATA_SIZE < required_length){
+        unsigned int prev_size = extend_data(required_length - TD_DATA_SIZE);
+        sprintf(TD_LOG_BUF, "  - Data is padded %d bytes with random value (DATA size: %d)\n", (TD_DATA_SIZE-prev_size), TD_DATA_SIZE);
+        logging(TD_LOG_BUF);
+        if ( TD_INPUT_STORE_OPTION == TD_INPUT_ALL ){
+            store_input_data(1);
+        }
+    }
+{%      else %}
+    // extend input data if it is required
+    if (TD_DATA_SIZE < required_length){
+        printf("ERROR: Not enough data for the inputs please check the input");
+        printf("       You provided %d bytes,", TD_DATA_SIZE);
+        printf("       We need %d bytes", required_length);
+        abort();
+    }
+{%      endif -%}
+{%- endmacro -%}
+
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print SUT initialization codes                              -#}
+{#-    * initializes:  list of sentences for SUT initilization  -#}
+{#-    * prefix:  origin or mutated  (not used yet)             -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_SUT_initialize(initializes, prefix='') -%}
+{%-      if initializes|length != 0 -%}
+    /* Initializing SUT */
+{%         for item in initializes %}
+    {{ item }}
+{%         endfor -%}
+{%-     endif -%}
+{%- endmacro -%}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print get_value functions for the struct data type          -#}
+{#-    * param:   dictionary for a struct parameter information -#}
+{#-    * prefix:  prefix for the param name                     -#}
+{#-    * debug_option:  print print_dat(); if it is "debug"     -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_param_initiaize(params, prefix="", debug_option="debug") -%}
+{%- set print_data = "print_data();" if debug_option == "debug" else "" -%}
+    /* Copy data from file */
+    seek_data_index(0);
+    logging("\nReset data index into 0\n");
+{% for param in params %}
+{%-     set param_name =  prefix+"_"+ param.name if prefix != "" else param.name -%}
+{%-     if param.struct != None  -%}
+{{  print_assist_statements(param.name, param.struct.before_statements, param.struct.fields, prefix) }}
+{{  print_struct_initiaize(param, prefix, debug_option) }}
+{{  print_assist_statements(param.name, param.struct.after_statements, param.struct.fields, prefix) }}
+{%     elif param.copy_method == "address" %}
+    get_value((char *)&{{ param_name }}, sizeof({{ param_name }}), 0); {{ print_data }}
+{%      elif param.copy_method == "string" %}
+    get_value((char *){{ param_name }}, sizeof({{ param_name }}), 1); {{ print_data }}
+{%      else %}
+    get_value((char *){{ param_name }}, sizeof({{ param_name }}), 0); {{ print_data }}
+{%      endif %}
+{% endfor %}
+{%- endmacro -%}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print assistant statements for user-defined struct          -#}
+{#-    * param_name:   name of the struct parameter             -#}
+{#-    * statements:   statements to be converted               -#}
+{#-    * fields:       dictionary for the field of the struct   -#}
+{#-    * prefix:       prefix for the strcut parameter          -#}
+{#- ----------------------------------------------------------- -#}
+{#-// replace function for statements            -#}
+{%- macro print_assist_statements(param_name, statements, fields, prefix='') -%}
+{%-     set adj_param_name =  prefix+"_"+ param_name if prefix != "" else param_name -%}
+{%-     set PRINT = namespace(statements = statements | replace("{param}", adj_param_name)) -%}
+{%-     for field in fields if field.user_defined == True -%}
+{%-         set PRINT.statements = PRINT.statements | replace("{field."+loop.index|string+"}", adj_param_name+"_"+field.name) -%}
+{%-         set PRINT.statements = PRINT.statements | replace("{size."+loop.index|string+"}", field.size) -%}
+{%-     endfor -%}
+{%-     if PRINT.statements != ""  %}
+    {{ PRINT.statements }}
+{%      else %}
+  {#- --empty, just for space-- -#}
+{%     endif -%}
+{%- endmacro -%}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print initializing code for the struct variable             -#}
+{#-        and also for the user-defined fields                 -#}
+{#-    * param:   dictionary for a struct parameter information -#}
+{#-    * prefix:  prefix for the param name                     -#}
+{#-    * debug_option:  print print_dat(); if it is "debug"     -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_struct_initiaize(param, prefix="", debug_option="debug") -%}
+{%-     set print_data = "print_data();" if debug_option == "debug" else "" -%}
+{%-     set param_name =  prefix+"_"+ param.name if prefix != "" else param.name -%}
+{%-     if param.copy_method == "address" %}
+    get_value((char *)&{{ param_name }}, sizeof({{ param_name }}), 0);  {{ print_data }}
+{%      else %}
+    get_value((char *){{ param_name }}, sizeof({{ param_name }}), 0);  {{ print_data }}
+{%      endif -%}
+{#-          // copying from input to user_defined fields for the struct -#}
+{%-     for field in param.struct.fields if field.user_defined == True %}
+    get_value((char *){{ param_name }}_{{ field.name }}, sizeof({{ param_name }}_{{ field.name }}), {{ field.string }}); {{ print_data }}
+{%-      endfor -%}
+{%- endmacro -%}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print function calls                                        -#}
+{#-    * function:     dictionary for function information      -#}
+{#-    * func_prefix:  prefix for the function name             -#}
+{#-    * param_prefix: prefix for parameter names               -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_function_call(function, func_prefix='', param_prefix='', ret_prefix='') -%}
+    /* Calling the {{ param_prefix }} function under test */
+    logging("Calling the {{ param_prefix }} function... \n");
+{%      set call_args_list = [] -%}
+{%-     for param in function.params -%}
+{%-         set param_name = param.name if param_prefix == "" else param_prefix+"_"+param.name -%}
+{%-         if param.call_method == "address" -%}
+    {{ call_args_list.append("&"+param_name) or '' -}}
+{%-         elif param.call_method == "string" -%}
+    {{ call_args_list.append(param_name) or '' -}}
+{%-         else -%}
+    {{ call_args_list.append(param_name) or '' -}}
+{%-         endif -%}
+{%-     endfor -%}
+{#-  -#}
+{%-     set ret_prefix = param_prefix if ret_prefix == "" else ret_prefix -%}
+{%-     set fname = function.name if func_prefix == "" else func_prefix+"_"+function.name -%}
+{%      if  "void" == function.returns.type %}
+    {{ fname }}({{ call_args_list|join(", ") }});
+{%      else %}
+    {{ ret_prefix }}_return = {{ fname }}({{ call_args_list|join(", ") }});
+{%      endif %}
+{%- endmacro -%}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print code for comparing parameter values                   -#}
+{#-    * params:   dictionary for parameters of the function    -#}
+{#-    * origin_prefix:  prefix for the original param names    -#}
+{#-    * mutant_prefix:  prefix for the mutant param names      -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_comparing_params(params, origin_prefix="", mutant_prefix="") -%}
+    /* Comparing execution results */
+    logging("\nComparing parameter values: \n");
+{% for param in params -%}
+{#-     // processing for struct type (only the structs that are listed in the config)   -#}
+{%      if param.struct != None %}
+{%          for field in param.struct.fields if field.user_defined == True %}
+    ret += compare_value((char *){{ origin_prefix }}_{{ param.name }}_{{ field.name }}, (char *){{ mutant_prefix }}_{{ param.name }}_{{ field.name }}, sizeof({{ origin_prefix }}_{{param.name}}_{{ field.name }}), "{{ param.name }}.{{ field.name }}");
+{%          endfor %}
+{#          for comp_field in param.user_struct.compares  #}
+{%          for field in param.struct.fields if not field.user_defined == True %}
+    ret += compare_value((char *)&{{ origin_prefix }}_{{ param.name }}.{{ field.name }}, (char *)&{{ mutant_prefix }}_{{ param.name }}.{{ field.name }}, sizeof({{ origin_prefix }}_{{param.name}}.{{ field.name }}), "{{ param.name }}.{{ field.name }}");
+{%          endfor %}
+{#      // processing for the non-struct data type  #}
+{%      elif param.copy_method == "address" %}
+    ret += compare_value((char *)&{{ origin_prefix }}_{{ param.name }}, (char *)&{{ mutant_prefix }}_{{ param.name }}, sizeof({{ origin_prefix }}_{{param.name}}), "{{ param.name }}");
+{%      elif param.copy_method == "string" %}
+    ret += compare_value((char *){{ origin_prefix }}_{{ param.name }}, (char *){{ mutant_prefix }}_{{ param.name }}, sizeof({{ origin_prefix }}_{{param.name}}), "{{ param.name }}");
+{%      else %}
+    ret += compare_value((char *){{ origin_prefix }}_{{ param.name }}, (char *){{ mutant_prefix }}_{{ param.name }}, sizeof({{ origin_prefix }}_{{param.name}}), "{{ param.name }}");
+{%      endif %}
+{% endfor %}
+{%- endmacro -%}
+
+{#- ----------------------------------------------------------- -#}
+{#- print code for comparing return values                      -#}
+{#-    * returns:   dictionary for a return type of the function-#}
+{#-    * origin_prefix:  prefix for the original param names    -#}
+{#-    * mutant_prefix:  prefix for the mutant param names      -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_comparing_returns(returns, origin_prefix="", mutant_prefix="") -%}
+{%- if  "void" != returns.type -%}
+    logging("\nComparing return values: \n");
+{%      if returns.driver_note == "pointer" %}
+    // Not supported yet
+    // ret += compare_value((char *){{ origin_prefix }}_return, (char *){{ mutant_prefix }}_return, sizeof({{ origin_prefix }}_return), "return");
+{%      elif returns.driver_note == "string" %}
+    ret += compare_string((char *){{ origin_prefix }}_return, (char *){{ mutant_prefix }}_return, "return");
+{%      else %}
+    ret += compare_value((char *)&{{ origin_prefix }}_return, (char *)&{{ mutant_prefix }}_return, sizeof({{ origin_prefix }}_return), "return");
+{%      endif %}
+{% endif %}
+{%- endmacro -%}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- Print parameter values of the function                      -#}
+{#-    * param:   dictionary for a struct parameter information -#}
+{#-    * prefix:  prefix for the param name                     -#}
+{#-    * LOGO:    string to be presented at each line           -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_param_values(params, prefix="", LOGO="") -%}
+    /* Print parameter values of the {{ prefix }} function */
+    printf("\n");
+{%      for param in params -%}
+{%-         set param_name =  prefix+"_"+ param.name if prefix != "" else param.name -%}
+{#-         -------------------------------------------------- -#}
+{%-         if param.struct != None %}
+    printf("{{ LOGO }}: struct '{{ param_name }}' ({{ param.def_type }}): \n");
+{#             ## for printing user-defined filds -#}
+{%               for field in param.struct.fields if field.user_defined == true  %}
+{%                  if field.print_format == "%s" %}
+    printf("{{ LOGO }}: \t{{ param_name }}.{{ field.name }} ({{ field.type }}) = '{{ field.print_format }}'\n", {{ param_name }}_{{ field.name }});
+{%                  elif field.print_format == "%X" %}
+    printf_hex("{{ LOGO }}: \t{{ param_name}}.{{ field.name }} ({{ field.type }}) = ", "\n", (char *)&{{ param_name }}_{{ field.name }}, sizeof({{ param_name }}_{{ field.name }}));
+{%                  else %}
+    printf("{{ LOGO }}: \t{{ param_name }}.{{ field.name }} ({{ field.type }}) = {{ field.print_format }}\n", {{ param_name }}_{{ field.name }});
+{%                  endif %}
+{%              endfor -%}
+{#-             ## for printing NON-user-defined filds -#}
+{%-             for field in param.struct.fields if not field.user_defined == true %}
+    printf("{{ LOGO }}: \t{{ param_name }}.{{ field.name }} ({{ field.type }}) = {{ field.print_format }}\n", {{ param_name }}.{{ field.name }});
+{%              endfor %}
+{#-         -------------------------------------------------- -#}
+{%          elif param.print_format == "%X" %}
+    printf_hex("{{ LOGO }}: {{ param_name}} ({{ param.def_type }}) = ", "\n", (char *)&{{ param_name }}, sizeof({{ param_name }}));
+{%          elif param.array_size > 1 %}
+    printf_hex("{{ LOGO }}: {{ param_name}} ({{ param.def_type }}[]) = ", "\n", (char *)&{{ param_name }}, sizeof({{ param_name }}));
+{%          elif param.copy_method == "address" %}
+    printf("{{ LOGO }}: {{ param_name}} ({{ param.def_type }}) = {{ param.print_format }}\n", {{ param_name }});
+{%          elif param.copy_method == "string" %}
+    printf("{{ LOGO }}: {{ param_name }} ({{ param.def_type }}) = {{ param.print_format }}\n", {{ param_name }});
+{%          else %}
+    printf("{{ LOGO }}: {{ param_name }} ({{ param.def_type }}) = {{ param.print_format }}\n", {{ param_name }});
+{%          endif -%}
+{%-      endfor -%}
+{%- endmacro -%}
+
+
+{#- ----------------------------------------------------------- -#}
+{#-    * returns:   dictionary for a return type of the function-#}
+{#-    * prefix:  prefix for the return name                    -#}
+{#-    * LOGO:    string to be presented at each line           -#}
+{#- ----------------------------------------------------------- -#}
+{%- macro print_return_values(returns, prefix="", LOGO="") -%}
+{%-     if  "void" != returns.type -%}
+{%-          if returns.driver_note == "pointer" -%}
+    // Pointer is not supported for the return value yet
+{%-          else -%}
+    printf("{{ LOGO }}: {{ prefix }}_return ({{ returns.type }}) = {{ returns.print_format }}\n\n", {{ prefix }}_return);
+{%-          endif -%}
+{%-     endif -%}
+{%- endmacro -%}

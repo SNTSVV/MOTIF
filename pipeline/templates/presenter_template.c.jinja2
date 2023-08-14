@@ -1,0 +1,103 @@
+{%  import "common_template.c.jinja2" as LIB %}
+{%- set origin_prefix = "origin" -%}
+{%- set mutant_prefix = "mut" -%}
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <time.h>
+#include <fcntl.h>  // for the definition of lock
+#include <sys/stat.h>
+
+/* Test function dependencies */
+{% for name in includes.global %}
+#include <{{ name }}>
+{% endfor %}
+{% for name in includes.local %}
+#include "{{ name }}"
+{% endfor %}
+
+
+/**************************************************
+* Main template for the function {{ function.name }} defined in the file {{ source_file }} *
+***************************************************/
+{% if flag_extern is true %}
+extern {{ function.returns.type }} {{ function.prototype }};
+extern {{ function.returns.type }} {{ mutant_prefix }}_{{ function.prototype }};
+{% else %}
+// extern {{ function.returns.type }} {{ function.prototype }};
+// extern {{ function.returns.type }} {{ mutant_prefix }}_{{ function.prototype }};
+{% endif %}
+
+{% include "presenter_lib_template.c" %}
+
+
+
+/**************************************************
+*  Entry for test driver
+***************************************************/
+// This program takes maximum four parameters, the first one is necessary
+// [1] <input_value.bin>: This is the input file that will be provided to the original and the mutated functions (binary)
+int main(int argc, char** argv)
+{
+    int ret = 0;               // for comparing results (0 - identical  >=1 - non-identical)
+    if (argc<2){
+        printf("No input provided!\n");
+        abort();
+    }
+
+    /* opening the input file */
+    load_file(argv[1]);
+    print_data();
+
+{# Showing the original values from the input #}
+    {{ LIB.print_variable_definition(function.params) }}
+    {{ LIB.print_param_initiaize(function.params, prefix="", debug_option="no_debug") }}
+    {{ LIB.print_param_values(function.params, "", "MOTIF-INPUT") }}
+    fflush(stdout);
+
+{# Declaring the variables for original and mutated functions #}
+    {{ LIB.print_return_var_definition(function.returns, origin_prefix, mutant_prefix) }}
+    {{ LIB.print_variable_definition(function.params, origin_prefix) }}
+    {{ LIB.print_variable_definition(function.params, mutant_prefix) }}
+    {{ LIB.print_required_length(function.params, origin_prefix, "stop") }}
+
+
+{# Calling original function #}
+    {{ LIB.print_SUT_initialize(initializes, origin_prefix) }}
+    {{ LIB.print_param_initiaize(function.params, prefix=origin_prefix, debug_option="no_debug") }}
+    {{ LIB.print_function_call(function, '', origin_prefix) }}
+
+{# Printing the result of original function #}
+    {{ LIB.print_param_values(function.params, origin_prefix, "MOTIF-"+origin_prefix.upper()+"-OUTPUT") }}
+    {{ LIB.print_return_values(function.returns, origin_prefix, "MOTIF-"+origin_prefix.upper()+"-OUTPUT") }}
+    fflush(stdout);
+
+{# Calling mutated function #}
+    {{ LIB.print_SUT_initialize(initializes, mutant_prefix) }}
+    {{ LIB.print_param_initiaize(function.params, prefix=mutant_prefix, debug_option="no_debug") }}
+    {{ LIB.print_function_call(function, mutant_prefix, mutant_prefix) }}
+
+{# Printing the result of mutated function #}
+    {{ LIB.print_param_values(function.params, mutant_prefix, "MOTIF-"+mutant_prefix.upper()+"-OUTPUT") }}
+    {{ LIB.print_return_values(function.returns, mutant_prefix, "MOTIF-"+mutant_prefix.upper()+"-OUTPUT") }}
+
+{# Comparing parameters and returns #}
+    {{ LIB.print_comparing_params(function.params, origin_prefix, mutant_prefix) }}
+    {{ LIB.print_comparing_returns(function.returns, origin_prefix, mutant_prefix) }}
+
+{# Reporting results #}
+    // If not identical
+    if (ret != 0){
+        char buf[50];
+        sprintf(buf, "[Not identical] (%d)\n", ret);
+        logging(buf);
+    }
+    else{
+        logging("[Identical] (0)\n");
+    }
+
+    clean();
+    return 0;
+}
