@@ -38,7 +38,7 @@ pip3 install chardet==3.0.4
 ```
 If you have an issue with installing the working environment,
 please use the Singularity image that we provided
-following [the section for Singualrity](#Working-with-Singularity)
+following [the section for Singualrity](#working-with-singularity)
 
 
 
