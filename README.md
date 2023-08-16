@@ -94,7 +94,7 @@ $ ls -al case_studies/MLFS/_exp1
 #   3-mutant-funcs:  functions that are extracted from the mutants (only mutated functions)
 #   4-mutant-bins:   compiled results for each mutant
 #   5-fuzzing:       stored results of fuzzing for each mutant
-#   logs:            stored log files (not be shown in local execution)
+#   6-verification:  stored execution results of fuzzing driver with the inputs killing a mutant
 #   _exp1-all.cmd:   listed all the commands that are executed by the run_list.py
 ```
 
