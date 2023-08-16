@@ -42,7 +42,7 @@ following [the section for Singualrity](#working-with-singularity)
 
 
 
-## Preparing AFL++
+## Preparing a fuzzer (AFL++)
 * The commands below will generate necessary binary files for MOTIF, `afl-gcc` and `afl-fuzz`.
 ```shell
 # install AFL++
