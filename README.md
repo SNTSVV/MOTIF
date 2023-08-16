@@ -371,12 +371,12 @@ See the example below:
 [HPC]~/<workpath>$ ./run_list.py --hpc --runs 2 --timeout 100 case_studies/_SUBJECT/live_mutants all
 
 #### <command_file>
-#./run.py --runID 1 --timeout 100 time.mut.87.3_2_1.ICR.time.c A all
-#./run.py --runID 2 --timeout 100 time.mut.87.3_2_1.ICR.time.c A all
-#./run.py --runID 1 --timeout 100 time.mut.88.2_4_2.ROD.time.c A all
-#./run.py --runID 2 --timeout 100 time.mut.88.2_4_2.ROD.time.c A all
-#./run.py --runID 1 --timeout 100 time.mut.89.2_1_3.LCR.time.c A all
-#./run.py --runID 2 --timeout 100 time.mut.89.2_1_3.LCR.time.c A all
+#./run.py --runID 1 --timeout 100 time.mut.87.3_2_1.ICR.time_to_timestamp.c A all
+#./run.py --runID 2 --timeout 100 time.mut.87.3_2_1.ICR.time_to_timestamp.c A all
+#./run.py --runID 1 --timeout 100 time.mut.88.2_4_2.ROD.time_to_timestamp.c A all
+#./run.py --runID 2 --timeout 100 time.mut.88.2_4_2.ROD.time_to_timestamp.c A all
+#./run.py --runID 1 --timeout 100 time.mut.89.2_1_3.LCR.time_to_timestamp.c A all
+#./run.py --runID 2 --timeout 100 time.mut.89.2_1_3.LCR.time_to_timestamp.c A all
 # launcher.sh will execute them sequentially
 ```
 
