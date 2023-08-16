@@ -177,21 +177,21 @@ We provide this guide for users who apply the MOTIF pipeline to a new subject.
    Actual list could be one of the examples below:
    ```
    # A simple list of mutant file name
-   time.mut.87.3_2.ICR.time_to_timestamp.c
-   time.mut.88.2_4.ROD.time_to_timestamp.c
+   time.mut.87.3_2_1.ICR.time_to_timestamp.c
+   time.mut.88.2_4_2.ROD.time_to_timestamp.c
    ...
    ```
    ```
    # A relative mutant file path from the '_SUBJECT/mutants' directory.
-   ./time/time.mut.87.3_2.ICR.time_to_timestamp.c
-   ./time/time.mut.88.2_4.ROD.time_to_timestamp.c
+   ./time/time.mut.87.3_2_1.ICR.time_to_timestamp.c
+   ./time/time.mut.88.2_4_2.ROD.time_to_timestamp.c
    ...
    ```
    ```
    # A mutant file name (also can contain relative path) and input filter.
-   time.mut.87.3_2.ICR.time_to_timestamp.c;A
-   time.mut.88.2_4.ROD.time_to_timestamp.c;Z;P
-   time.mut.89.2_1.LCR.time_to_timestamp.c;N;Z;P
+   time.mut.87.3_2_1.ICR.time_to_timestamp.c;A
+   time.mut.88.2_4_2.ROD.time_to_timestamp.c;Z;P
+   time.mut.89.2_1_3.LCR.time_to_timestamp.c;N;Z;P
    ...
    ```
 
