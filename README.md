@@ -177,21 +177,21 @@ We provide this guide for users who apply the MOTIF pipeline to a new subject.
    Actual list could be one of the examples below:
    ```
    # A simple list of mutant file name
-   clock.mut.87.3_2.ICR.gs_clock.c
-   clock.mut.88.2_4.ROD.gs_clock.c
+   time.mut.87.3_2.ICR.time_to_timestamp.c
+   time.mut.88.2_4.ROD.time_to_timestamp.c
    ...
    ```
    ```
    # A relative mutant file path from the '_SUBJECT/mutants' directory.
-   src/clock/clock.mut.87.3_2.ICR.gs_clock.c
-   src/clock/clock.mut.88.2_4.ROD.gs_clock.c
+   ./time/time.mut.87.3_2.ICR.time_to_timestamp.c
+   ./time/time.mut.88.2_4.ROD.time_to_timestamp.c
    ...
    ```
    ```
    # A mutant file name (also can contain relative path) and input filter.
-   clock.mut.87.3_2.ICR.gs_clock.c;A
-   clock.mut.88.2_4.ROD.gs_clock.c;Z;P
-   clock.mut.89.2_1.LCR.gs_clock.c;N;Z;P
+   time.mut.87.3_2.ICR.time_to_timestamp.c;A
+   time.mut.88.2_4.ROD.time_to_timestamp.c;Z;P
+   time.mut.89.2_1.LCR.time_to_timestamp.c;N;Z;P
    ...
    ```
 
@@ -248,9 +248,9 @@ The parameter `--runID` is used for indicating an experiment among the multiple 
 This parameter is used when the `run_list.py` uses `--runs` parameter.
 ```shell
 # ./run.py [--runID <int>] [--timeout <int>] <mutant_name> <input_filter> <phase>
-$ ./run.py clock.mut.89.2_1_3.LCR.gs_clock.c A preprocess
-$ ./run.py --timeout 600 clock.mut.89.2_1_3.LCR.gs_clock.c A preprocess
-$ ./run.py --runID 1 --timeout 600 clock.mut.89.2_1_3.LCR.gs_clock.c A preprocess
+$ ./run.py time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
+$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
+$ ./run.py --runID 1 --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
 ```
 
 
@@ -341,11 +341,11 @@ See the following examples:
 ```shell
 $ singularity shell --bind ./:/expr -H /expr ./containers/motif_default.sif
 [singularity]~/$ cd /expr
-[singularity]/expr$ ./run.py clock.mut.89.2_1_3.LCR.gs_clock.c A preprocess
-[singularity]/expr$ ./run.py clock.mut.89.2_1_3.LCR.gs_clock.c A build
-[singularity]/expr$ ./run.py --timeout 600 clock.mut.89.2_1_3.LCR.gs_clock.c A run
+[singularity]/expr$ ./run.py time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
+[singularity]/expr$ ./run.py time.mut.89.2_1_3.LCR.time_to_timestamp.c A build
+[singularity]/expr$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A run
 or 
-[singularity]/expr$ ./run.py --timeout 600 clock.mut.89.2_1_3.LCR.gs_clock.c A all
+[singularity]/expr$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A all
 ```
 
 
@@ -371,12 +371,12 @@ See the example below:
 [HPC]~/<workpath>$ ./run_list.py --hpc --runs 2 --timeout 100 case_studies/_SUBJECT/live_mutants all
 
 #### <command_file>
-#./run.py --runID 1 --timeout 100 clock.mut.87.3_2_1.ICR.clock.c A all
-#./run.py --runID 2 --timeout 100 clock.mut.87.3_2_1.ICR.clock.c A all
-#./run.py --runID 1 --timeout 100 clock.mut.88.2_4_2.ROD.clock.c A all
-#./run.py --runID 2 --timeout 100 clock.mut.88.2_4_2.ROD.clock.c A all
-#./run.py --runID 1 --timeout 100 clock.mut.89.2_1_3.LCR.clock.c A all
-#./run.py --runID 2 --timeout 100 clock.mut.89.2_1_3.LCR.clock.c A all
+#./run.py --runID 1 --timeout 100 time.mut.87.3_2_1.ICR.time.c A all
+#./run.py --runID 2 --timeout 100 time.mut.87.3_2_1.ICR.time.c A all
+#./run.py --runID 1 --timeout 100 time.mut.88.2_4_2.ROD.time.c A all
+#./run.py --runID 2 --timeout 100 time.mut.88.2_4_2.ROD.time.c A all
+#./run.py --runID 1 --timeout 100 time.mut.89.2_1_3.LCR.time.c A all
+#./run.py --runID 2 --timeout 100 time.mut.89.2_1_3.LCR.time.c A all
 # launcher.sh will execute them sequentially
 ```
 
