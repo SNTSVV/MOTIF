@@ -1,0 +1,74 @@
+{%-  import "common_template.c.jinja2" as LIB -%}
+{%-  import "common_testcase_template.c.jinja2" as TC -%}
+{%- set origin_prefix = "origin" -%}
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+
+/* Test function dependencies */
+{% for name in includes.global %}
+#include <{{ name }}>
+{% endfor %}
+{% for name in includes.local %}
+#include "{{ name }}"
+{% endfor %}
+
+
+/**************************************************
+* Main template for the function {{ function.name }} defined in the file {{ source_file }} *
+***************************************************/
+{% if flag_extern is true %}
+extern {{ function.returns.type }} {{ function.prototype }};
+{% else %}
+// extern {{ function.returns.type }} {{ function.prototype }};
+{% endif %}
+
+
+{% include "lib_utils.c" %}
+
+{% include "lib_assertion.c" %}
+
+
+/**************************************************
+* Define input and expected values in hex
+***************************************************/
+{# appendix = {'input': [1,0,0,0,1,0,0,0,...], 'params': [1,0,0,0,1,0,0,0,...], 'returns':[0]} #}
+{{ TC.print_param_value_definition(function.params, appendix.input, prefix='input_data') }}
+{{ TC.print_param_value_definition(function.params, appendix.params, prefix='expected') }}
+{{ TC.input_definition(function.returns, appendix.returns, 0, prefix="expected") }}
+
+/**************************************************
+*  Entry for test driver
+***************************************************/
+int main(int argc, char** argv)
+{
+    (void)argc;
+    (void)argv;
+
+{# Showing the original values from the input #}
+{{ LIB.print_return_var_definition(function.returns, 'function', '') }}
+{{ LIB.print_variable_definition(function.params, '') }}
+
+{# Calling original function #}
+{{ LIB.print_SUT_initialize(initializes) }}
+
+    /* Copy data from file */
+{{ TC.print_param_copy_from_memory(function.params, prefix='input_data') }}
+{{ LIB.print_param_values(function.params, "", "MOTIF-INPUT") }}
+
+    /* Calling the {{ mutant_prefix }} function under test */
+    printf("Calling the function... \n");
+{{ LIB.print_function_call(function, '', '', 'function') }}
+
+{# Printing original function #}
+{{ LIB.print_param_values(function.params, '', "MOTIF-FUNCTION-OUTPUT") -}}
+{{ LIB.print_return_values(function.returns, 'function', "MOTIF-FUNCTION-OUTPUT") }}
+
+{# Printing original function #}
+{{ TC.print_assertion(function.params, 'expected') -}}
+{{ TC.print_return_assertion(function.returns, 'function','expected') }}
+
+    printf("PASS\n");
+
+    return 0;
+}

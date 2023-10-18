@@ -47,8 +47,8 @@ void seek_data_index(const int v){ TD_DATA_IDX = v;}
 void print_data(){
     sprintf(TD_LOG_BUF, "Data read (%3d/%3d): 0x[", TD_DATA_IDX, TD_DATA_SIZE);
     logging(TD_LOG_BUF);
-    for(int x=0; x<TD_DATA_SIZE; x++){
-        if (x==TD_DATA_IDX) logging("*");
+    for(unsigned int x=0; x<TD_DATA_SIZE; x++){
+        if (x == TD_DATA_IDX) logging("*");
         sprintf(TD_LOG_BUF, "%02X,", (char)TD_DATA[x] & 0x000000FF);
         logging(TD_LOG_BUF);
     }
@@ -139,16 +139,3 @@ int compare_string(const char* origin, const char* mut, const char* var_name) {
 }
 
 
-/**************************************************
-* print utilities
-***************************************************/
-void printf_hex(char * prefix, char * postfix, char *var, size_t length){
-    printf(prefix);
-    printf("(hex, %ld bytes) ", length);
-    for(int idx=0; idx<length-1; idx++) {
-        if (idx != 0 && idx %4 == 0) printf(",");
-        printf("%02X", (char) var[idx] & 0x000000FF);
-    }
-    printf("%02X", var[length-1] & 0x000000FF);
-    printf(postfix);
-}

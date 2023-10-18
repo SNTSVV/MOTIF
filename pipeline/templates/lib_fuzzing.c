@@ -13,9 +13,9 @@ char * TD_WORKING_DIR = NULL;      // keeping working directory
 * Manage execution ID
 ***************************************************/
 unsigned long long TD_SEQ_ID = 0;  // sequence_id
-unsigned long long TD_EXEC_ID = 0;
+unsigned long long TD_TIME_ID = 0;
 unsigned long long DIST_BASE_NUM = 5000; // (maximum file nums in a folder)
-const int TD_PATH_BUF_SIZE = 1024;
+const int TD_PATH_BUF_SIZE = 5000;
 
 static void _mkdir(const char *dir) {
     char tmp[TD_PATH_BUF_SIZE];
@@ -83,6 +83,7 @@ unsigned long long set_seq_id(){
     // unlock
     flock(fileNo, LOCK_UN);  // LOCK_UN: Unlock
     close(fileNo);
+    return 0;
 }
 
 // get a time value in microseconds
@@ -97,9 +98,9 @@ unsigned long long get_micro_time(){
     return (unsigned long long)value.tv_sec * 1000000 + (value.tv_nsec/1000);
 }
 
-// The parameter workdir is not used anymore, but keep it for later just in case
-void set_exec_id(){
-    TD_EXEC_ID = get_micro_time();
+
+void set_time_id(){
+    TD_TIME_ID = get_micro_time();
 }
 
 /**************************************************
@@ -158,7 +159,7 @@ void logging_check_point(const int i){
     char log_buf[100];
 
     if (TD_SN_LOG_CNT == 0){
-        sprintf(log_buf, "\n%llu,%llu,1", TD_SEQ_ID,TD_EXEC_ID);
+        sprintf(log_buf, "\n%llu,%llu,1", TD_SEQ_ID,TD_TIME_ID);
     }
     else{
         sprintf(log_buf, ",%d", i);
@@ -213,7 +214,7 @@ void seek_data_index(const int v){ TD_DATA_IDX = v;}
 void print_data(){
     sprintf(TD_LOG_BUF, "Data read (%3d/%3d): 0x[", TD_DATA_IDX, TD_DATA_SIZE);
     logging(TD_LOG_BUF);
-    for(int x=0; x<TD_DATA_SIZE; x++){
+    for(unsigned int x=0; x<TD_DATA_SIZE; x++){
         if (x==TD_DATA_IDX) logging("*");
         sprintf(TD_LOG_BUF, "%02X,", (char)TD_DATA[x] & 0x000000FF);
         logging(TD_LOG_BUF);
@@ -233,7 +234,7 @@ unsigned int extend_data(const unsigned int _size_to_extend){
     unsigned long long time = get_micro_time();
     srand((unsigned int)time); // &t1
 
-    for (int x=0; x<_size_to_extend; x++){
+    for (unsigned int x=0; x<_size_to_extend; x++){
         TD_DATA[prev_size+x] = ((int)rand()) & 0x000000FF;  // select 8 bit random value
     }
 
@@ -273,7 +274,10 @@ void store_data(const char * output_filename, char* buf, unsigned int buf_size){
     fclose(fout);
 }
 
-void store_input_data(const int revision) {
+
+int INPUT_FILE_REVISION_ID=0; // revision number for the input file
+
+void store_input_data() {
     if (TD_WORKING_DIR == NULL) return;
 
     // make output filename
@@ -282,10 +286,10 @@ void store_input_data(const int revision) {
     sprintf(output_path, "%s/%s", TD_WORKING_DIR, INPUT_DIR_NAME);   // create a directory for logs
     prepare_dist_dir(output_path, dist_dir);    // create a sub directory for logs
 
-    if (revision == 0) {
+    if (INPUT_FILE_REVISION_ID == 0) {
         sprintf(output_path, "%s/%010llu.inb", dist_dir, TD_SEQ_ID);
     } else {
-        sprintf(output_path, "%s/%010llu_revised%d.inb", dist_dir, TD_SEQ_ID, revision);
+        sprintf(output_path, "%s/%010llu_revised%d.inb", dist_dir, TD_SEQ_ID, INPUT_FILE_REVISION_ID);
     }
 
     // store data
@@ -376,19 +380,53 @@ void safe_abort(){
     abort();
 }
 
+/**************************************************
+* for the signal setup
+***************************************************/
+// func_handler should follow the following prototype (second one preferred)
+//  - void sig_error_handler(int signo)
+//  - void sig_error_handler(int signo, siginfo_t *info, void *other)
+{#
+char SIGNALS_STR[32][10] = {
+    "SIGHUP",   //  1 -
+    "SIGINT",   //  2 -
+    "SIGQUIT",  //  3 - Quit from keyboard (Core Dump)
+    "SIGILL",   //  4 - Illegal instruction  (Core Dump)
+    "SIGTRAP",  //  5 - Breakpoint for debugging  (Core Dump)
+    "SIGABRT",  //  6 - Abnormal termination  (Core Dump)
+    "SIGBUS",   //  7 - Bus error (Core Dump)
+    "SIGFPE",   //  8 - Floating-point exception (Core Dump)
+    "SIGKILL",  //  9 - Forced process termination
+    "SIGUSR1",  // 10 -
+    "SIGSEGV",  // 11 - Segmentation Fault  (Core Dump) - Invalid memory reference
+    "SIGUSR2",  // 12 -
+    "SIGPIPE",  // 13 - Broken pipe (Termination)
+    "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD","SIGCONT",
+    "SIGSTOP","SIGTSTP","SIGTTIN", "SIGTTOU","SIGURG",
+    "SIGXCPU","SIGXFSZ","SIGVTALRM", "SIGPROF","SIGWINCH",
+    "SIGPOLL",
+    "SIGPWR",   // 30 -
+    "SIGSYS",    // 31 - Bad system CALL (Dump)
+    ""
+};
 
-void init_random_buf(char * buf, const size_t buf_size){
-    unsigned long long time = get_micro_time();
-    srand((unsigned int)time); // &t1
+int setup_signal(void* func_handler){
+    int sigtypes[] = {SIGILL, SIGBUS, SIGFPE, SIGSEGV, SIGPIPE, SIGSYS};
+    int n_types = 6;
 
-    for (int i = 0; i < buf_size; i++){
-        buf[i] = ((int)rand()) & 0x000000FF;  // select 8 bit random value
+    struct sigaction sa;
+    memset (&sa, 0, sizeof(sa));
+    sa.sa_sigaction = func_handler;
+    sa.sa_flags = SA_SIGINFO;
+
+    int ret = 0;
+    for (int i=0; i<n_types; i++){
+        ret |= sigaction(sigtypes[i], &sa, NULL); // register handler for signals
     }
-    buf[buf_size-1] = 0;
+    return ret;
 }
 
-void copy_value(char * src, char * dest, const int size){
-    memcpy(dest, src, size);
-    dest[size-1] = 0;
-
+int release_signal(){
+    return setup_signal(SIG_DFL);
 }
+#}

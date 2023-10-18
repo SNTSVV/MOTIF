@@ -1,0 +1,196 @@
+{%-  import "common_template.c.jinja2" as LIB -%}
+
+{#- ----------------------------------------------------------- -#}
+{#- print input definition for the function under test          -#}
+{#-    * params:  dictionary for function parameters            -#}
+{#-    * values:  binary values loaded from the input file      -#}
+{#-    * prefix:  prefix string for the variables               -#}
+{#- ----------------------------------------------------------- -#}
+{% macro print_param_value_definition(params, values, prefix="") -%}
+{%     set base = 0 -%}
+{%     set PRINT = namespace(base = 0) -%}
+{%     for param in params -%}
+    {{  input_definition(param, values, PRINT.base, prefix) }}
+{%         set PRINT.base = PRINT.base + param.size %}   {#- move to the next start point -#}
+{%         if param.struct != None  -%}
+{%             for field in param.struct.fields if field.user_defined == True %}
+{%                 set field_prefix =  prefix+"_"+ param.name if prefix != "" else param.name -%}
+    {{  input_definition(field, values, PRINT.base, field_prefix) }}
+{%                 set PRINT.base = PRINT.base + field.size -%}
+{%             endfor %}
+{%         endif  %}
+{%     endfor %}
+{% endmacro %}
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print input definition for a parameter                      -#}
+{#-    * param:  dictionary for a function parameter info       -#}
+{#-    * values:  binary values loaded from the input file      -#}
+{#-    * base:    start index of the values for the param       -#}
+{#-    * prefix:  prefix string for the variables               -#}
+{#- ----------------------------------------------------------- -#}
+{% macro input_definition(param, values, base, prefix="") -%}
+{%-     set param_name =  prefix+"_"+ param.name if prefix != "" else param.name -%}
+const char {{ param_name }}[{{ param.size }}] = {
+{%-         for x in range(param.size) %}
+{{- '0x%02X' % values[base+x]|int -}}
+{%              if x != (param.size - 1) -%}
+{{- "," -}}
+{%-             endif %}
+{%         endfor %}
+{{- '};' -}}
+{% endmacro %}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print copy function from input to the paramter variables    -#}
+{#-    * param:   dictionary for a struct parameter information -#}
+{#-    * prefix:  prefix for the param name                     -#}
+{#- ----------------------------------------------------------- -#}
+{% macro print_param_copy_from_memory(params, prefix="") -%}
+{%     for param in params -%}
+{%         set input_var_name =  prefix+"_"+ param.name if prefix != "" else param.name %}
+{%         if param.struct != None  %}
+{{  LIB.print_assist_statements(param.name, param.struct.before_statements, param.struct.fields, '') -}}
+{{  print_struct_copy(param, prefix) -}}
+{{  LIB.print_assist_statements(param.name, param.struct.after_statements, param.struct.fields, '', after=True) -}}
+{%         elif param.copy_method == "address" %}
+    memcpy(&{{ param.name }}, {{ input_var_name }}, sizeof({{ param.name }}));
+{%         elif param.copy_method == "string" %}
+    memcpy({{ param.name }}, {{ input_var_name }}, sizeof({{ param.name }}));
+{%         else %}
+    memcpy(&{{ param.name }}, {{ input_var_name }}, sizeof({{ param.name }}));
+{%         endif %}
+{%     endfor %}
+{% endmacro %}
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print initializing code for the struct variable             -#}
+{#-        and also for the user-defined fields                 -#}
+{#-    * param:   dictionary for a struct parameter information -#}
+{#-    * prefix:  prefix for the param name                     -#}
+{#-    * debug_option:  print print_dat(); if it is "debug"     -#}
+{#- ----------------------------------------------------------- -#}
+{% macro print_struct_copy(param, prefix="") -%}
+{%     set input_var_name =  prefix+"_"+ param.name if prefix != "" else param.name %}
+{%     if param.copy_method == "address" %}
+    memcpy((char *)&{{ param.name }}, {{ input_var_name }}, sizeof({{ param.name }}));
+{%     else %}
+    memcpy((char *){{ param.name }}, {{ input_var_name }}, sizeof({{ param.name }}));
+{%     endif %}
+{%     for field in param.struct.fields if field.user_defined == True %}
+{%         set field_var_name =  param.name+"_"+ field.name %}
+{%         set field_input_var_name =  input_var_name+"_"+ field.name %}
+    memcpy((char *){{ field_var_name }}, {{ field_input_var_name }}, sizeof({{ field_var_name }}));
+{%      endfor %}
+{%- endmacro %}
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print assertion functions                                   -#}
+{#-    * params:  dictionary for function parameters            -#}
+{#-    * prefix:  prefix string for the variables               -#}
+{#- ----------------------------------------------------------- -#}
+{% macro print_assertion(params, prefix="") %}
+{%     for param in params %}
+{%         set expected_value_var =  prefix+"_"+ param.name if prefix != "" else param.name %}
+{%         if param.struct != None  %}
+{%              for field in param.struct.fields if field.user_defined == True %}
+    assert(0==compare((char *){{ param.name }}_{{ field.name }}, (char *){{ expected_value_var }}_{{ field.name }}, sizeof({{ param.name }}_{{ field.name }})));
+{%              endfor %}
+{#-              for comp_field in param.user_struct.compares  -#}
+{%              for field in param.struct.fields if field.user_defined == False %}
+    assert(0==compare((char *)&{{ param.name }}.{{ field.name }}, (char *){{ expected_value_var }}_{{ field.name }}, sizeof({{ param.name }}.{{ field.name }})));
+{%              endfor %}
+{#    {{  print_struct_initiaize(param, prefix, debug_option) }}#}
+{%          elif param.copy_method == "address" %}
+    assert(0==compare((char *)&{{ param.name }}, {{ expected_value_var }}, sizeof({{ param.name }})));
+{%          elif param.copy_method == "string" %}
+    assert(0==compare((char *){{ param.name }}, {{ expected_value_var }}, sizeof({{ param.name }})));
+{%          else %}
+    assert(0==compare((char *)&{{ param.name }}, {{ expected_value_var }}, sizeof({{ param.name }})));
+{%          endif %}
+{%     endfor %}
+{% endmacro %}
+
+
+
+{#- ----------------------------------------------------------- -#}
+{#- print assertion functions                                   -#}
+{#-    * params:  dictionary for function parameters            -#}
+{#-    * prefix:  prefix string for the variables               -#}
+{#- ----------------------------------------------------------- -#}
+{% macro print_return_assertion(returns, prefix, expected_prefix) %}
+{%      set return_name =  prefix+"_"+ returns.name %}
+{%      set expected_name =  expected_prefix+"_"+ returns.name %}
+{%      if  "void" != returns.type %}
+{%          if returns.driver_note == "pointer" %}
+    // Not supported yet
+{%          elif returns.driver_note == "string" %}
+    assert(0==compare((char *){{ return_name }}, {{ expected_name }}, sizeof({{ return_name }})));
+{%          else %}
+    assert(0==compare((char *)&{{ return_name }}, {{ expected_name }}, sizeof({{ return_name }})));
+{%          endif %}
+{%      endif %}
+{% endmacro %}
+
+
+
+
+
+
+{#- -------------------------------------------------------------- -#}
+{#- print file output functions for param results                  -#}
+{#-    * params:   dictionary for function parameters              -#}
+{#-    * filename: variable name for outputfilename                -#}
+{#-    * prefix:   prefix string for the variables used for params -#}
+{#- -------------------------------------------------------------- -#}
+{% macro print_ouptut_params_array(params, filename, prefix="") %}
+    char filename_params[2000];
+    sprintf(filename_params, "%s.params", {{ filename }});
+    FILE* fp_params = fopen(filename_params, "wb");
+{% for param in params %}
+{%      set param_name =  prefix+"_"+ param.name if prefix != "" else param.name %}
+{%      if param.copy_method == "address" %}
+    fwrite((char *)&{{ param_name}}, 1, sizeof({{ param_name }}), fp_params);
+{%      elif param.copy_method == "string" %}
+    fwrite((char *){{ param_name }}, 1, sizeof({{ param_name}}), fp_params);
+{%      else %}
+    fwrite((char *){{ param_name }}, 1, sizeof({{ param_name }}), fp_params);
+{%      endif %}
+{%      if param.struct != None  %} {#- Only the structs having pointers -#}
+{%          for field in param.struct.fields if field.user_defined == True %}
+    fwrite((char *){{param_name}}_{{field.name}}, 1, sizeof({{param_name}}_{{field.name}}), fp_params);
+{%          endfor %}
+{%      endif %}
+{%  endfor %}
+    fclose(fp_params);
+{% endmacro %}
+
+
+
+{#- -------------------------------------------------------------- -#}
+{#- print file output functions for param results                  -#}
+{#-    * returns:  dictionary for a return type of the function    -#}
+{#-    * filename: variable name for outputfilename                -#}
+{#-    * prefix:   prefix string for the variables used for return -#}
+{#- -------------------------------------------------------------- -#}
+{% macro print_ouptut_return_array(returns, filename, prefix="function") %}
+    char filename_return[2000];
+    sprintf(filename_return, "%s.returns", {{ filename }});
+    FILE* fp_return = fopen(filename_return, "wb");
+{% if  "void" != returns.type %}
+{%      if returns.driver_note == "pointer" %}
+    // Not supported yet
+{%      elif returns.driver_note == "string" %}
+    fwrite((char *){{ prefix }}_return, 1, sizeof({{ prefix }}_return), fp_return);
+{%      else %}
+    fwrite((char *)&{{ prefix }}_return, 1, sizeof({{ prefix }}_return), fp_return);
+{%      endif %}
+{% endif %}
+    fclose(fp_return);
+{% endmacro %}
+

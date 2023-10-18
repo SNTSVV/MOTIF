@@ -1,6 +1,6 @@
 {%-  import "common_template.c.jinja2" as LIB -%}
+{%-  import "common_testcase_template.c.jinja2" as TC -%}
 {%- set origin_prefix = "origin" -%}
-{%- set mutant_prefix = "mut" -%}
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -28,7 +28,9 @@ extern {{ function.returns.type }} {{ function.prototype }};
 // extern {{ function.returns.type }} {{ function.prototype }};
 {% endif %}
 
-{% include "presenter_lib_template.c" %}
+
+{% include "lib_presenter.c" %}
+{% include "lib_utils.c" %}
 
 
 
@@ -37,32 +39,46 @@ extern {{ function.returns.type }} {{ function.prototype }};
 ***************************************************/
 // This program takes maximum four parameters, the first one is necessary
 // [1] <input_value.bin>: This is the input file that will be provided to the original and the mutated functions (binary)
+// [2] <output_value.bin>: This is the output file that will be stored the execution results (binary)
 int main(int argc, char** argv)
 {
-    int ret = 0;               // for comparing results (0 - identical  >=1 - non-identical)
     if (argc<2){
-        printf("No input provided!\n");
+        printf("No input filepath provided!\n");
+        abort();
+    }
+    if (argc<3){
+        printf("No output filepath provided!\n");
         abort();
     }
 
     /* opening the input file */
     load_file(argv[1]);
-    print_data();
 
 {# Showing the original values from the input #}
-    {{ LIB.print_return_var_definition(function.returns, 'function', '') }}
-    {{ LIB.print_variable_definition(function.params, '') }}
-    {{ LIB.print_param_initiaize(function.params, "", "no_debug") }}
-    {{ LIB.print_param_values(function.params, "", "MOTIF-INPUT") }}
+{{ LIB.print_return_var_definition(function.returns, 'function', '') }}
+{{ LIB.print_variable_definition(function.params, '') }}
+{#{{ LIB.print_param_initiaize(function.params, "", "no_debug") }}#}
+{#{{ LIB.print_param_values(function.params, "", "MOTIF-INPUT") }}#}
 
 {# Calling original function #}
-    {{ LIB.print_SUT_initialize(initializes, origin_prefix) }}
-    {{ LIB.print_param_initiaize(function.params, '', "no_debug") }}
-    {{ LIB.print_function_call(function, '', '', 'function') }}
+{{ LIB.print_SUT_initialize(initializes, origin_prefix) }}
+    /* Copy data from file */
+    seek_data_index(0);
+    printf("\nReset data index into 0\n");
+{{ LIB.print_param_initiaize(function.params, '', "no_debug") }}
+    /* Calling the function under test */
+    printf("Calling the function... \n");
+{{ LIB.print_function_call(function, '', '', 'function') }}
 
 {# Printing original function #}
-    {{ LIB.print_param_values(function.params, '', "MOTIF-FUNCTION-OUTPUT") }}
-    {{ LIB.print_return_values(function.returns, 'function', "MOTIF-FUNCTION-OUTPUT") }}
+{#{{ LIB.print_param_values(function.params, '', "MOTIF-FUNCTION-OUTPUT") }}#}
+{#{{ LIB.print_return_values(function.returns, 'function', "MOTIF-FUNCTION-OUTPUT") }}#}
+
+{# Output results to a file #}
+    // write param values
+{{ TC.print_ouptut_params_array(function.params, "argv[2]", prefix="") }}
+    // write return value
+{{ TC.print_ouptut_return_array(function.returns, "argv[2]", prefix="function") }}
 
     clean();
     return 0;

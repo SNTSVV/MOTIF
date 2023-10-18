@@ -1,7 +1,8 @@
 {%  import "common_template.c.jinja2" as LIB %}
 {%- set origin_prefix = "origin" -%}
-{%- set false_prefix = "false" -%}
+{%- set mutant_prefix = "mut" -%}
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -26,13 +27,27 @@
 // Actually functions do not need extern keyword.
 {% if flag_extern is true %}
 extern {{ function.returns.type }} {{ function.prototype }};
+extern {{ function.returns.type }} {{ mutant_prefix }}_{{ function.prototype }};
 {% else %}
 // extern {{ function.returns.type }} {{ function.prototype }};
+// extern {{ function.returns.type }} {{ mutant_prefix }}_{{ function.prototype }};
 {% endif %}
 
-{% include "driver_lib_template.c" %}
+{% include "lib_fuzzing.c" %}
 
 
+{#
+void mutant_abort_handler(int signo, siginfo_t *info, void *other) {
+    sprintf(TD_LOG_BUF, "CRASHED in the mutated function: %s\n", SIGNALS_STR[signo-1]);
+    logging(TD_LOG_BUF);
+    if ( TD_INPUT_STORE_OPTION == TD_INPUT_ONLY_CRASH ) store_input_data();
+
+    // propagate the signal to the fuzzer
+    release_signal();
+    raise(signo);
+    // safe_abort();
+}
+#}
 
 /**************************************************
 *  Entry for test driver
@@ -55,7 +70,7 @@ int main(int argc, char** argv)
     if (argc > 2) {
         TD_WORKING_DIR = argv[2];   // set global variable
         set_seq_id();
-        set_exec_id();
+        set_time_id();
         log_open_check();
     }
     if (argc > 4) log_open();
@@ -67,38 +82,52 @@ int main(int argc, char** argv)
         else                             TD_INPUT_STORE_OPTION = TD_INPUT_ALL;
     }
 
-    if (TD_INPUT_STORE_OPTION == TD_INPUT_ALL) store_input_data(0);
+    if (TD_INPUT_STORE_OPTION == TD_INPUT_ALL) store_input_data();
 
     logging_check_point(1);
 
-    {{ LIB.print_return_var_definition(function.returns, origin_prefix, false_prefix) }}
-    {{ LIB.print_variable_definition(function.params, origin_prefix) }}
-    {{ LIB.print_variable_definition(function.params, false_prefix) }}
-    {{ LIB.print_required_length(function.params, origin_prefix) }}
+{{ LIB.print_return_var_definition(function.returns, origin_prefix, mutant_prefix) }}
+{{ LIB.print_variable_definition(function.params, origin_prefix) }}
+{{ LIB.print_variable_definition(function.params, mutant_prefix) }}
+{{ LIB.print_required_length(function.params, origin_prefix) -}}
 
 {# Calling original function #}
-    {{ LIB.print_SUT_initialize(initializes, origin_prefix) }}
-    {{ LIB.print_param_initiaize(function.params, origin_prefix) }}
-    {{ LIB.print_function_call(function, func_prefix='', param_prefix=origin_prefix) }}
+{{ LIB.print_SUT_initialize(initializes, origin_prefix) }}
+    /* Copy data from file */
+    seek_data_index(0);
+    logging("\nReset data index into 0\n");
+{{ LIB.print_param_initiaize(function.params, origin_prefix) }}
+    /* Calling the {{ origin_prefix }} function under test */
+    logging("Calling the {{ origin_prefix }} function... \n");
+{{ LIB.print_function_call(function, '', origin_prefix) }}
     logging_check_point(1);
 
-{# Calling original function using dup variables #}
-    {{ LIB.print_SUT_initialize(initializes, false_prefix) }}
-    {{ LIB.print_param_initiaize(function.params, false_prefix) }}
-    {{ LIB.print_function_call(function, func_prefix='', param_prefix=false_prefix) }}
+{# Calling mutated function #}
+{{ LIB.print_SUT_initialize(initializes, mutant_prefix) }}
+    /* Copy data from file */
+    seek_data_index(0);
+    logging("\nReset data index into 0\n");
+{{ LIB.print_param_initiaize(function.params, mutant_prefix) }}
+    /* Calling the {{ mutant_prefix }} function under test */
+    logging("Calling the {{ mutant_prefix }} function... \n");
+{#    setup_signal(&mutant_abort_handler);   // set-up trap#}
+{{ LIB.print_function_call(function, mutant_prefix, mutant_prefix) }}
+{#    release_signal();                      // release trap#}
     logging_check_point(1);
 
 {# Comparing parameters and returns #}
-    {{ LIB.print_comparing_params(function.params, origin_prefix, false_prefix) }}
-    {{ LIB.print_comparing_returns(function.returns, origin_prefix, false_prefix) }}
+    /* Comparing execution results */
+    logging("\nComparing parameter values: \n");
+{{ LIB.print_comparing_params(function.params, origin_prefix, mutant_prefix) }}
+{{ LIB.print_comparing_returns(function.returns, origin_prefix, mutant_prefix) }}
 
 {# Reporting results #}
     // If not identical
     if (ret != 0){
-        if ( TD_INPUT_STORE_OPTION == TD_INPUT_ONLY_CRASH ) store_input_data(0);
+        if ( TD_INPUT_STORE_OPTION == TD_INPUT_ONLY_CRASH ) store_input_data();
+        logging_check_point(0);
         char buf[50];
         sprintf(buf, "[Not identical] (%d)", ret);
-        logging_check_point(0);
         logging(buf);
     }
     else{
