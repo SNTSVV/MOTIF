@@ -2,18 +2,40 @@
 # User data
 ###########################
 _*/
+containers/baks/
+containers/*.sif
+containers/*.box
+case_studies/*
+AFL*/
+
+###########################
+# PIP install info for singularity
+# can be made by commanding "pip install -e ./ --user" in the singularity
+###########################
+*.egg-info/
+.local
+
+###########################
+# singularity working environment
+###########################
+.bashrc
+.profile
+.gitignore
+.bash_history
+.viminfo
+.python_history
 
 ###########################
 # vagrant settings
 ###########################
-.vagrant/
-__pycache__/
+.vagrant*/
 
 ###########################
 # python data
 ###########################
 *.pyc
-
+.cache
+__pycache__/
 
 ###########################
 # MacOS settings
@@ -25,3 +47,4 @@ __pycache__/
 # IDE settings
 ###########################
 .idea/
+out/

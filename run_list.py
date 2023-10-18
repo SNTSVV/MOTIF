@@ -73,7 +73,7 @@ class ListRunner(object):
     def generate_commands(self, _mutants, _input_filters, _sequential=False):
         cmds = []
         # Execute multiple runs
-        if confList.RUNS is not None and confList.PHASE in ["fuzzing", "gen"]:
+        if confList.RUNS is not None and confList.PHASE in ["fuzzing", "gen", "all"]:
             # generate multiple runs of commands for all mutants
             for idx in range(0, len(_mutants)):
                 for runID in range(1, confList.RUNS+1):
@@ -86,6 +86,7 @@ class ListRunner(object):
                 params = self.make_parameters(_mutants[idx], _input_filters[idx], _sequential=_sequential)
                 cmd = "%s %s" % (confList.PYTHON_CMD, ' '.join(params))
                 cmds.append(cmd)
+
         return cmds
 
     def store_commands(self, _cmds):
@@ -333,17 +334,19 @@ class ListRunner(object):
 
         return mutants, input_filters
 
-    def make_parameters(self, _mutant, _input_filter, _runID=None, _sequential=False):
+    def make_parameters(self, _mutant, _input_filter=None, _runID=None, _sequential=False):
         # create parameters
         params = confList.get_single_run_arguments_template()
         if _runID is not None:
-            params.insert(-3, "--runID")
-            params.insert(-3, str(_runID))  # all parameters should be a string
+            params.insert(-1, "--runID")
+            params.insert(-1, str(_runID))  # all parameters should be a string
         if _sequential is True:
-            params.insert(-3, "--noconfview")
-        params[-3] = _mutant
-        params[-2] = _input_filter
+            params.insert(-1, "--noconfview")
+        if _input_filter is not None and _input_filter != "A":
+            params.insert(-1, "--input-filter")
+            params.insert(-1, _input_filter)
 
+        params[-1] = _mutant
         return params
 
     def obtain_mutants_info(self, _mutants):

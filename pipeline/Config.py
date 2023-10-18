@@ -56,15 +56,15 @@ class Config(utils.dotdict):
         # necessary parameters
         if _multi is False:
             parser.add_argument("MUTANT", metavar="<mutant-file>", help="target mutant file to fuzz")
-            parser.add_argument("INPUT_FILTER", metavar="<input-filter>", help="semicolon separated list of input filters for a mutated function (N:negative, Z:zero, P:positive, A:all)\n e.g.: `N;Z`, `N;Z;P`, `A`")
         else:
             parser.add_argument("MUTANT_LIST", metavar="<mutant-list-file>", help="target mutant list file to fuzz")
-        parser.add_argument("PHASE", metavar="<phase>", help="pipeline execution phase, select one among {'preprocess', 'build', 'fuzzing', 'gen', 'all'}")
+        parser.add_argument('--phase', dest='PHASE', type=str, default="all", help="pipeline execution phase, select one among {'preprocess', 'build', 'fuzzing', 'gen', 'all'}")
         parser.add_argument('-c', dest='CONFIG', type=str, default="config.py", help='config file that defines default parameter values')
 
         # optional parameters (related controlling run.py and run_list.py)
         if _multi is False:
             parser.add_argument('--runID', dest='RUN_ID', type=int, default=None, help='specified run identity to fuzz a mutant')
+            parser.add_argument("--input-filter", dest="INPUT_FILTER", type=str, default="A", help="semicolon separated list of input filters for a mutated function (N:negative, Z:zero, P:positive, A:all)\n e.g.: `N;Z`, `N;Z;P`, `A`")
         else:
             parser.add_argument('--runs', dest='RUNS', type=int, default=None, help='number of runs to fuzz a mutant')
             parser.add_argument('--resume', dest='RESUME', type=int, default=1, help='number of job sequence, for HPC execution')
@@ -556,8 +556,9 @@ class Config(utils.dotdict):
                 idx += 1
 
             # change necessary parameters for run.py
-            del args[-2]   # remove mutant_list
-            args.insert(-1, "mutant")
-            args.insert(-1, "A")
+            del args[-1]   # remove mutant_list
+            args.append("mutant")
+            # args.insert(-1, "mutant")
+            # args.insert(-1, "A")
             self.stored_argument_template = args
         return self.stored_argument_template.copy()
