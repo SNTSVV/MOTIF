@@ -40,9 +40,10 @@ class IncludeFinder():
         if _AST is not None:
             self.__AST = _AST
 
-        self.globals = self.__get_header_files(_code=_code, _is_local=False)
+        uncommented_code = CommentsParser(_code).remove_comments().code
+        self.globals = self.__get_header_files(_code=uncommented_code, _is_local=False)
         self.globals = self.__select_preprocessed_header_files(self.globals)
-        self.locals = self.__get_header_files(_code=_code, _is_local=True)
+        self.locals = self.__get_header_files(_code=uncommented_code, _is_local=True)
         self.locals = self.__select_preprocessed_header_files(self.locals)
         pass
 
@@ -53,9 +54,10 @@ class IncludeFinder():
         if _code is None: raise Exception("Please provide proper input")
 
         # obtain headers from the _code
-        globals = self.__get_header_files(_code=_code, _is_local=False)
+        uncommented_code = CommentsParser(_code).remove_comments().code
+        globals = self.__get_header_files(_code=uncommented_code, _is_local=False)
         globals = self.__select_preprocessed_header_files(globals)
-        locals = self.__get_header_files(_code=_code, _is_local=True)
+        locals = self.__get_header_files(_code=uncommented_code, _is_local=True)
         locals = self.__select_preprocessed_header_files(locals)
 
         self.globals = self.__subtract_items(self.globals, globals) # list(set(self.globals) - set(globals))
@@ -131,8 +133,7 @@ class IncludeFinder():
         :param _is_local:
         :return:
         '''
-        code = CommentsParser(_code).parse().code
-        lines = code.split('\n')
+        lines = _code.split('\n')
 
         # get header files
         headers = []

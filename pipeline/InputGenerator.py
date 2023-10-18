@@ -2,10 +2,13 @@ import os
 import sys
 import re
 import struct
+
 if __package__ is None or __package__ == "":
     from Prototype import Prototype
+    import utils
 else:
     from pipeline.Prototype import Prototype
+    from pipeline import utils
 
 
 class InputGenerator():
@@ -64,6 +67,7 @@ class InputGenerator():
                 values.append(value)
 
             # generate file
+            utils.prepare_directory(_output_path)
             filename = os.path.join(_output_path, "%s.%s"%(_prototype.name, input_type))
             self.__generate_binary_file(values, filename)
         return True

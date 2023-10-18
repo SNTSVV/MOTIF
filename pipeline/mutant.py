@@ -15,14 +15,15 @@ class Mutant(dotdict):
         # mutant file format
         # path/[source_code_name].mut.[line_number].[loc_info].[mutation_type].[function_name].c
         obj = Mutant()
-        obj['fullpath']  = _filepath                  # input path
-        obj['dir_path']  = os.path.dirname(_filepath)  # dirpath of mutant src/path/to/codefilename/
-        obj['filename'] = os.path.basename(_filepath) # mutant file name (including ext)
-        obj['name'] = obj['filename'] [:-2]           # mutant name (without ext)
+        obj['fullpath']  = _filepath                         # input path
+        obj['dir_path']  = os.path.dirname(_filepath)        # dirpath of mutant src/path/to/codefilename/
+        obj['filename'] = os.path.basename(_filepath)        # mutant file name (including ext)
 
+        pure_filename, ext = os.path.splitext(obj['filename'])   # mutant name (without ext)
+        obj['name'] = pure_filename
         items = obj['name'].split(".")
-        obj['src_path'] = obj['dir_path'] + '.c'   # src/path/to/codefile.c  in $REPOS
-        obj['src_name']  = items[0]+".c"           # codefile.c
+        obj['src_path'] = obj['dir_path'] + ext    # src/path/to/codefile.c  in $REPOS
+        obj['src_name']  = items[0] + ext          # codefile.c
         obj['line']     = items[2]                 # mutated line number
         obj['loc']      = items[3]                 # additional info for mutation
         obj['type']     = items[4]                 # type of mutant (ROR, LOD, ...)

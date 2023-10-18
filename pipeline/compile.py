@@ -29,7 +29,7 @@ def initialize_SUT(_repo, _bak_filter):
     return True
 
 
-def inject_mutated_function( _code_file, _mutated_function):
+def inject_mutated_function( _code_file, _mutated_func_file, _func_name, _mut_prefix):
     '''
     inject mutated function into the _code_file
     if the mutated function is static, it can be an issue, so we remove static keyword
@@ -37,38 +37,82 @@ def inject_mutated_function( _code_file, _mutated_function):
     :param _mutated_function:
     :return:
     '''
-    # read original code and mutated code
-    code = open(_code_file, "r").read()
-    mutated_code = open(_mutated_function, "r").read()
+    # # read original code and mutated code
+    # mutated_code = open(_mutated_func_file, "r").read()
+    #
+    # # get the position of the end of the qualifiers (before the function name started)
+    # # function parameters: r"[\w\s\*\[\]<>&]+" + r"(,[\w\s\*\[\]<>&]+)*"
+    # rex = re.compile(r"\w+\s*\([\w\s\[\]*<>&]+(,[\w\s\[\]*<>&]+)*\)")
+    # search_end = mutated_code.find("{")+1
+    # q = rex.search(mutated_code, 0, search_end)
+    # idx = q.span(0)[0]
+    #
+    # # check if the function is static
+    # #  - It is acceptable because the mutated code has only the function code
+    # static = True if mutated_code[:idx].rfind('static')>=0 else False
+    # if static is True:
+    #     print("Target function is static, we are trying to address this but there may be problems...")
+    #     print('We just eliminate the `static` keyword from the functions')
+    #     # eliminate "static" in mutated function declaration
+    #     mutated_code = mutated_code[:idx].replace('static', '') + mutated_code[idx:]
+    #
+    #     ### TODO:: I need to update this code
+    #     # eliminate "static" from the source file
+    #     # declaration_line=$(grep -n " $info['func']" self.TARGET_CODE | grep "(" | grep "static" | cut -d : -f 1)
+    #     # sed -i "$declaration_line s/static//" "self.TARGET_CODE"
+    #     # code = code.replace('static', '')  ## this is error
+    if _mutated_func_file is not None:
+        with open(_mutated_func_file, "r") as f:
+            mutated_code = f.read()
+            mutated_code = remove_static_keyword(mutated_code, _mut_prefix+"_"+_func_name)
 
-    # get the position of the end of the qualifiers (before the function name started)
-    # function parameters: r"[\w\s\*\[\]<>&]+" + r"(,[\w\s\*\[\]<>&]+)*"
-    rex = re.compile(r"\w+\s*\([\w\s\[\]*<>&]+(,[\w\s\[\]*<>&]+)*\)")
-    search_end = mutated_code.find("{")+1
-    q = rex.search(mutated_code, 0, search_end)
-    idx = q.span(0)[0]
-
-    # check if the function is static
-    #  - It is acceptable because the mutated code has only the function code
-    static = True if mutated_code[:idx].rfind('static')>=0 else False
-    if static is True:
-        print("Target function is static, we are trying to address this but there may be problems...")
-        print('We just eliminate the `static` keyword from the functions')
-        # eliminate "static" in mutated function declaration
-        mutated_code = mutated_code[:idx].replace('static', '') + mutated_code[idx:]
-
-        ### TODO:: I need to update this code
-        # eliminate "static" from the source file
-        # declaration_line=$(grep -n " $info['func']" self.TARGET_CODE | grep "(" | grep "static" | cut -d : -f 1)
-        # sed -i "$declaration_line s/static//" "self.TARGET_CODE"
-        code = code.replace('static', '')  ## this is error
+    with open(_code_file, "r") as f:
+        code = f.read()
+        code = remove_static_keyword(code, _func_name)
 
     # append mutated function to the source file
-    code = code + '\n\n\n' + mutated_code
-    f = open(_code_file, "w")
-    f.write(code)
-    f.close()
+    with open(_code_file, "w") as f:
+        f.write(code)
+        if _mutated_func_file is not None:
+            f.write('\n\n\n' + mutated_code)
     return True
+
+
+def remove_static_keyword(_code, _function_name):
+    regex  = r''                #
+    # regex  = r'\s*'           # allow space
+    regex += r'([\w\*]+\s+)*'   # classifier (allow multiple, include at least a space)
+    regex += r'(static\s+)'     # static type
+    regex += r'([\w\*\_\(\)]+\s+)+'   # return type or classifier (allow multiple, include at least a space)
+    regex += r'(\w+)\s*'        # function name (allow space)
+    regex += r'\('              # '('
+    regex += r'[^)]*'           # args - total cop out
+    regex += r'\)'              # ')'
+    regex += r'\s*'             # allow space
+    # regex += r'(\{|;)'          # prototype or definition
+    pattern_func_prototype = re.compile(regex)
+    # r'([\w\*]+\s+)*(static\s+)([\w\*\_\(\)]+\s+)+(\w+)\s*\([^)]*\)\s*'
+
+    idx = 0
+    while True:
+        func = pattern_func_prototype.search(_code, idx)
+        if func is None: break
+
+        # set the next search point
+        start, end = func.span(0)   # func.span(0) returns a tuple (start, end)
+        idx = end + 1
+
+        # check if it is the target function
+        fname = func.groups()[-1]
+        if fname != _function_name: continue
+
+        # get the location of the function name
+        fname_idx = len(func.groups())
+        end = func.span(fname_idx)[0]     # the start point of function name will be the end range
+
+        _code = _code[:start] + _code[start:end].replace("static", "") + _code[end:]
+        idx -= 6        # reduce idx as many as the length of "static"
+    return _code
 
 
 def compile_SUT(_repo, _commands, _env=None):
@@ -235,8 +279,8 @@ def get_target_files(_list, _location):
 
         # get files using the predicate
         files = glob.glob(path_predicate, recursive=True)
-        if len(files)==0:
-            return []
+        if len(files) == 0:
+            continue
 
         # make relative path from _location
         files = [os.path.abspath(f) for f in files]

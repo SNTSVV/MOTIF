@@ -59,7 +59,7 @@ class Config(utils.dotdict):
             parser.add_argument("INPUT_FILTER", metavar="<input-filter>", help="semicolon separated list of input filters for a mutated function (N:negative, Z:zero, P:positive, A:all)\n e.g.: `N;Z`, `N;Z;P`, `A`")
         else:
             parser.add_argument("MUTANT_LIST", metavar="<mutant-list-file>", help="target mutant list file to fuzz")
-        parser.add_argument("PHASE", metavar="<phase>", help="pipeline execution phase, select one among {'preprocess', 'build', 'run'}")
+        parser.add_argument("PHASE", metavar="<phase>", help="pipeline execution phase, select one among {'preprocess', 'build', 'fuzzing', 'gen', 'all'}")
         parser.add_argument('-c', dest='CONFIG', type=str, default="config.py", help='config file that defines default parameter values')
 
         # optional parameters (related controlling run.py and run_list.py)
@@ -75,7 +75,6 @@ class Config(utils.dotdict):
         if _multi is True:
             parser.add_argument('--parallel-nodes', dest='N_PARALLELS_PER_JOB', type=int, default=None, help='(integer) number of tasks to be executed in parallel')
             parser.add_argument('--parallel-ntasks', dest='N_TASKS_PER_JOB', type=int, default=None, help='(integer) number of tasks to be executed in one parallel job')
-
 
         # following parameters for the run.py but run_list.py can provide
         parser.add_argument('--timeout', dest='FUZZING_TIMEOUT', type=int, default=None, help='timeout for fuzzing in seconds (e.g., 3600*3 for 3 hours)')
@@ -100,6 +99,14 @@ class Config(utils.dotdict):
         parser.add_argument('--noconfview', dest='NO_CONFIG_VIEW', action='store_true', help='(boolean) Do not show the configuration values')
         # parser.add_argument('--verbose', dest='VERBOSE', action='store_true', help='(boolean) Print detail results')
 
+        # output parameter
+        parser.add_argument('--func-driver-name', dest='FUNC_DRIVER_NAME', type=str, default=None, help='output path redirection')
+        parser.add_argument('--func-input-name', dest='FUNC_INPUT_NAME', type=str, default=None, help='output path redirection')
+        parser.add_argument('--mutant-func-name', dest='MUTANT_FUNC_NAME', type=str, default=None, help='output path redirection')
+        parser.add_argument('--mutant-bin-name', dest='MUTANT_BIN_NAME', type=str, default=None, help='output path redirection')
+        parser.add_argument('--fuzzing-output-name', dest='FUZZING_OUTPUT_NAME', type=str, default=None, help='output path redirection')
+        parser.add_argument('--testcase-output-name', dest='TESTCASE_OUTPUT_NAME', type=str, default=None, help='output path redirection')
+
         # Parsing arguments
         args = sys.argv if _args is None else _args
         args = args[1:]  # remove executed file (as it is the name of source code file)
@@ -110,8 +117,9 @@ class Config(utils.dotdict):
     def load_default_config(_config_file):
         # check the config file exists
         if os.path.exists(_config_file) is False:
-            shutil.copy('./pipeline/_config.py', _config_file)
-            utils.error_exit("This pipeline requires config file. \n Please take a look and update the auto generated config file: %s" % _config_file)
+            sample_config = os.path.join(os.path.dirname(__file__), "_config.py")
+            shutil.copy(sample_config, _config_file)
+            utils.error_exit("This pipeline requires config file. \nPlease take a look and update the auto generated config file: %s" % _config_file)
 
         return utils.load_module(_config_file)
 
@@ -123,7 +131,8 @@ class Config(utils.dotdict):
         '''
         param_dicts = vars(_params)
         for key, value in param_dicts.items():
-            if value is None: continue
+            # The key that is not defined in the config will be added
+            if value is None and self.has_value(key): continue
             self[key] = value
 
         # Add params that should be existed during pipeline process
@@ -165,12 +174,12 @@ class Config(utils.dotdict):
         self.MUTANT_BIN_PATH     = utils.makepath(self.OUTPUT_PATH, self.MUTANT_BIN_NAME)
 
         fuzzing_name = self.FUZZING_OUTPUT_NAME
-        verify_name = self.VERIFY_OUTPUT_NAME
+        testcase_name = self.TESTCASE_OUTPUT_NAME
         if self.has_value('EXP_TAG_NAME'):
             fuzzing_name = fuzzing_name + "-" + self.EXP_TAG_NAME
-            verify_name = verify_name + "-" + self.EXP_TAG_NAME
+            testcase_name = testcase_name + "-" + self.EXP_TAG_NAME
         self.FUZZING_OUTPUT_PATH = utils.makepath(self.OUTPUT_PATH, fuzzing_name)
-        self.VERIFY_OUTPUT_PATH = utils.makepath(self.OUTPUT_PATH, verify_name)
+        self.TESTCASE_OUTPUT_PATH = utils.makepath(self.OUTPUT_PATH, testcase_name)
 
         # HPC setting
         self.JOB_NAME = self.EXP_NAME
@@ -186,11 +195,11 @@ class Config(utils.dotdict):
             self.HPC_LOG_PATH = utils.makepath(self.OUTPUT_PATH, log_nmae)
 
         # HPC temporary directory setting
-        self.HPC_BUILD_BASE = utils.makepath(self.HPC_WORK_PATH, "repos")
-        if self.has_value('EXP_TAG_NAME'):
-            self.HPC_EXEC_BASE = utils.makepath(self.HPC_WORK_PATH, self.EXP_NAME, self.EXP_TAG_NAME)
-        else:
-            self.HPC_EXEC_BASE = utils.makepath(self.HPC_WORK_PATH, self.EXP_NAME, "__base__")
+        # self.HPC_BUILD_BASE = utils.makepath(self.HPC_WORK_PATH, "repos")
+        # if self.has_value('EXP_TAG_NAME'):
+        #     self.HPC_EXEC_BASE = utils.makepath(self.HPC_WORK_PATH, self.EXP_NAME, self.EXP_TAG_NAME)
+        # else:
+        #     self.HPC_EXEC_BASE = utils.makepath(self.HPC_WORK_PATH, self.EXP_NAME, "__base__")
 
         # remove unnecessary variables
         del self['FUNC_DRIVER_NAME']
@@ -198,7 +207,7 @@ class Config(utils.dotdict):
         del self['MUTANT_FUNC_NAME']
         del self['MUTANT_BIN_NAME']
         del self['FUZZING_OUTPUT_NAME']
-        del self['VERIFY_OUTPUT_NAME']
+        del self['TESTCASE_OUTPUT_NAME']
         pass
 
     def configure_mutant_information(self, _mutant_name, _input_filter):
@@ -241,7 +250,7 @@ class Config(utils.dotdict):
 
     def verify_config(self, _multi=False):
         # check valid phase
-        valid_phases = ["preprocess", "build", "run", "all", "verify"]
+        valid_phases = ["preprocess", "build", "fuzzing", "gen", "all"]
         if self.PHASE not in valid_phases:
             utils.error_exit("The pipeline has no `%s` phase. Please select one of the %s" % (self.PHASE, str(valid_phases)))
 
@@ -398,8 +407,8 @@ class Config(utils.dotdict):
         if _multi is True:
             print("  - HPC                   : %s" % self.HPC)
         print("  - HPC_LOG_PATH          : %s" % self.HPC_LOG_PATH)
-        print("  - HPC_BUILD_BASE        : %s" % self.HPC_BUILD_BASE)
-        print("  - HPC_EXEC_BASE         : %s" % self.HPC_EXEC_BASE)
+        # print("  - HPC_BUILD_BASE        : %s" % self.HPC_BUILD_BASE)
+        # print("  - HPC_EXEC_BASE         : %s" % self.HPC_EXEC_BASE)
         print("  - HPC_WORK_PATH         : %s" % self.HPC_WORK_PATH)
         print("  - LOG_FILE_NAME         : %s" % self.LOG_FILE_NAME)
         print("  - SBATCH_PARAMETERS     : %s" % self.SBATCH_PARAMETERS)

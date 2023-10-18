@@ -130,7 +130,12 @@ class Prototype():
             printf_format = "%s"
         else:
             printf_format = self.__get_printf_format(self.returns)
-        returns = {"type": self.returns['pure_type'], "driver_note": driver_note, "print_format": printf_format}
+        returns = {"name": "return",
+                   "type": self.returns['pure_type'],
+                   "size": self.returns['size'],
+                   "driver_note": driver_note,
+                   "print_format": printf_format
+        }
         print("\t - return: %s" % str(returns))
         return {'name':self.name, "returns":returns, 'params': params, 'prototype':self.prototype}
 
@@ -456,7 +461,7 @@ class Prototype():
         if base['can_kind'] == TypeKind.VOID:
             param['pure_type'] = base['can_type']
 
-            # select pointee information that need to generate test driver
+        # select pointee information that need to generate test driver
         param['ptr_type'] = base['ptr_pure_type'] if base['ptr_pure_type'] != "" else None # type name of pointee
         param['can_ptr_type'] = base['can_ptr_pure_type'] # canonical type name of pointee
         param['ptr_size'] = base['ptr_size'] if base['ptr_size'] >= 0 else 0  # total size of pointee in bytes
@@ -574,10 +579,12 @@ class Prototype():
             # Set field data type
             if field['pointer'] is False:
                 field['type'] = field_info['can_pure_type']
-                if field_info['kind'] == TypeKind.RECORD: field['type'] = 'struct'
+                # if field_info['kind'] == TypeKind.RECORD: field['type'] = 'struct'  # Unused and weird code
+                # TODO:: if 'kind' is TYPEDEF, even if it is RECORD, the above code cannot catch.
+                # TODO:: Additionally, 'struct' type will raise an error.
             else:
                 field['type'] = field_info['can_ptr_pure_type']
-                if field_info['ptr_kind'] == TypeKind.RECORD: field['type'] = 'struct'
+                # if field_info['ptr_kind'] == TypeKind.RECORD: field['type'] = 'struct'
 
             # Set field size
             # - if the field is a pointer, we just use the pointer variable size

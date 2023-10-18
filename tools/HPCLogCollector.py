@@ -147,7 +147,7 @@ class HPCLogCollector():
                 return True
         return False
 
-    def check_run_success(self, _logfile):
+    def check_fuzzing_success(self, _logfile):
         iterator = tools.utils.readline_reverse(_logfile, 30)
 
         # check error messages
@@ -181,6 +181,38 @@ class HPCLogCollector():
         cmd = "tar tf %s" % (_filename)
         ret, lines = utils.shell.execute(cmd)
         if ret != 0:
+            return False
+        return True
+
+    def check_gen_success(self, _logfile):
+        iterator = tools.utils.readline_reverse(_logfile, 2000)
+
+        # check error messages
+        lines = []
+        for line in iterator:
+            if line.find("Traceback")>=0:
+                return False
+            if line.find("Failed to generate test cases") >= 0:
+                return False
+            if line.find("AssertionError") >=0:
+                return False
+            lines.append(line)
+
+        # find the result file
+        result_file = None
+        for line in lines:
+            key = "Please find the results"
+            if line.startswith(key):
+                result_file = line[len(key)+2:].strip()
+                break
+
+        # final states check
+        final_state = False
+        for line in lines:
+            if line.startswith("Finished test case generation"):
+                final_state = True
+
+        if final_state is False or self.check_result_file(result_file) is False:
             return False
         return True
 

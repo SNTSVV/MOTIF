@@ -14,7 +14,6 @@ if __package__ is None or __package__ == "":
     from ASTAnalyzer import ASTAnalyzer
     from Prototype import Prototype
     from IncludeFinder import IncludeFinder
-    from InputGenerator import InputGenerator
     from Config import Config
     import compile
     import utils
@@ -22,7 +21,6 @@ else:
     from pipeline.ASTAnalyzer import ASTAnalyzer
     from pipeline.Prototype import Prototype
     from pipeline.IncludeFinder import IncludeFinder
-    from pipeline.InputGenerator import InputGenerator
     from pipeline.Config import Config
     from pipeline import utils
     from pipeline import compile
@@ -42,13 +40,6 @@ else:
 #       - 'DEFAULT_ARRAY_SIZE'
 #       - 'PARAMETER_FORMAT'
 class TemplateGenerator():
-    # CONSTANTS
-    EXT_DRIVER = "wrapping_main.c"
-    PRESENTER_PREFIX = "presenter"
-    TESTCASE_PREFIX = "testcase"
-    FALSE_POSITIVE_PREFIX = "false"
-    # DEPENDENCY_PREFIX = "dependency"
-
     # global input
     SOURCE_FILE = None
     OUTPUT_PATH = None
@@ -56,27 +47,18 @@ class TemplateGenerator():
 
     #internal objects
     AST:ASTAnalyzer = None
+    functions = None        # List of Cursors (FUNCTION_DECLARATION)
+    prototypes = {}         # List of prototypes (Prototype class)
 
-    def __init__(self, _source_file, _output_dir, _config:Config, _compilation_flags=None, _input_dir=None):
+    def __init__(self, _source_file, _config:Config, _compilation_flags=None):
         # set configurations
         global confTemp
         confTemp = _config
 
         # set paths
         self.SOURCE_FILE = _source_file
-        self.OUTPUT_PATH = _output_dir
         if not os.path.isfile(_source_file):
             assert False, "The specified source file does not exist"
-        if not os.path.isdir(_output_dir):
-            os.makedirs(_output_dir, exist_ok=True)
-
-        # set input path
-        if _input_dir is None:
-            self.INPUT_PATH = utils.makepath(self.OUTPUT_PATH, 'inputs')
-        else:
-            self.INPUT_PATH = _input_dir
-        if not os.path.isdir(self.INPUT_PATH):
-            os.makedirs(self.INPUT_PATH, exist_ok=True)
 
         # define _compilation_flag if it is not provided
         if _compilation_flags is None:
@@ -85,77 +67,48 @@ class TemplateGenerator():
 
         # process
         self.AST = ASTAnalyzer(self.SOURCE_FILE, _compilation_flags)
+        self.functions = self.AST.get_function_decls()
+        self.prototypes = {}
         pass
 
-    def process(self, _func_name:str=None):
-        # get AST cursors
-        func_decls = self.AST.get_function_decls()
+    def generate(self, _func_name:str, _driver_src_path, _template_entry, _appendix=None):
+        if _func_name not in self.prototypes:
+            # process of the generating template
+            target_func_decl = None
+            for func_decl in self.functions:
+                if _func_name is not None and func_decl.spelling != _func_name: continue
+                target_func_decl = func_decl
 
-        # process of the generating template
-        non_applicable_functions = []
-        for func_decl in func_decls:
-            if _func_name is not None and func_decl.spelling != _func_name: continue
+            if target_func_decl is None:
+                print("Not found the function in the code: %s" % _func_name)
+                return False
 
             # Convert the AST object to Prototype object
-            prototype = Prototype(func_decl, confTemp.TEMPLATE_CONFIG, self.AST)
+            prototype = Prototype(target_func_decl, confTemp.TEMPLATE_CONFIG, self.AST)
+            self.prototypes[_func_name] = prototype
+        else:
+            prototype = self.prototypes[_func_name]
 
-            # filter out non-applicable types
-            # if self.check_non_applicable_types(prototype):
-            #     non_applicable_functions.append(prototype)
-            #     continue
-
-            # generate test driver for AFL execution
-            test_driver_path = os.path.join(self.OUTPUT_PATH, prototype.name + '.' + self.EXT_DRIVER)
-            self.create_concrete_code(prototype, None, test_driver_path, confTemp.TEMPLATE_FUZZING_DRIVER)
-            print("\t- Generated test driver for {}".format(prototype.name))
-
-            # generate value presenter (test driver for printing values)
-            test_driver_path = os.path.join(self.OUTPUT_PATH, prototype.name + '.'+ self.PRESENTER_PREFIX + '.' + self.EXT_DRIVER)
-            self.create_concrete_code(prototype, None, test_driver_path, confTemp.TEMPLATE_PRESENTER_DRIVER)
-            print("\t- Generated value presenter driver for {}".format(prototype.name))
-
-            # generate testcase presenter (test driver for printing values)
-            test_driver_path = os.path.join(self.OUTPUT_PATH, prototype.name + '.'+ self.TESTCASE_PREFIX + '.' + self.EXT_DRIVER)
-            self.create_concrete_code(prototype, None, test_driver_path, confTemp.TEMPLATE_TESTCASE_DRIVER)
-            print("\t- Generated test case driver for {}".format(prototype.name))
-
-            # generate testcase presenter (test driver for printing values)
-            if 'TEMPLATE_FALSE_POSITIVE_DRIVER' in confTemp:
-                test_driver_path = os.path.join(self.OUTPUT_PATH, prototype.name + '.'+ self.FALSE_POSITIVE_PREFIX + '.' + self.EXT_DRIVER)
-                self.create_concrete_code(prototype, None, test_driver_path, confTemp.TEMPLATE_FALSE_POSITIVE_DRIVER)
-                print("\t- Generated false-positive driver for {}".format(prototype.name))
-
-            # generate testcase presenter (test driver for printing values)
-            # if 'TEMPLATE_DEPENDENCY_DRIVER' in confTemp:
-            #     test_driver_path = os.path.join(self.OUTPUT_PATH, prototype.name + '.'+ self.DEPENDENCY_PREFIX + '.' + self.EXT_DRIVER)
-            #     self.create_concrete_code(prototype, None, test_driver_path, confTemp.TEMPLATE_DEPENDENCY_DRIVER)
-            #     print("\t- Generated dependency driver for {}".format(prototype.name))
-
-            # generate input files
-            gen = InputGenerator(confTemp.TEMPLATE_CONFIG)
-            gen.generate(prototype, self.INPUT_PATH)
-            print("\t- Generated input files for {}".format(prototype.name))
-
-        # check the non-applicable-functions
-        if len(non_applicable_functions) > 0:
-            print("Info: The following functions are not applicable automatically:")
-            for prototype in non_applicable_functions:
-                print("@non-applicable-functions: {} {}".format(prototype.returns['type'], prototype.prototype))
-
-        # Error check
-        desired_functions = len(func_decls) if _func_name is None else 1
-        if len(non_applicable_functions) == desired_functions:
-            print("\nNo functions are available to generate test drivers")
+        if self.check_non_applicable_types(prototype):
+            print("@non-applicable-functions: {} {}".format(prototype.returns['type'], prototype.prototype))
             return False
 
-        print("\nDone writing test driver in folder {}".format(self.OUTPUT_PATH))
-        print("Done generating input files in folder {}".format(self.INPUT_PATH))
+        # generate test driver for AFL execution
+        try:
+            os.makedirs(os.path.dirname(_driver_src_path), exist_ok=True)
+        except OSError as e:
+            if e.errno == 20:
+                print("Cannot create the directory: %s. \nPlease check there is a file with the same name"%_driver_src_path)
+                raise
+        self.create_concrete_code(prototype, _appendix, _driver_src_path, _template_entry)
+        print("Generated test driver for {}: {}".format(_func_name, _driver_src_path))
         return True
 
     def check_non_applicable_types(self, _prototype):
-        if _prototype.returns['driver_kind'] == "VOID_POINTER": return True
-        for param in _prototype.params:
-            if param['driver_kind'].startswith("VOID") is True: return True
+        # if _prototype.returns['driver_kind'] == "VOID_POINTER": return True
+        # for param in _prototype.params:
+        #     if param['driver_kind'].startswith("VOID") is True: return True
+        if _prototype.params is None or len(_prototype.params)==0: return True
 
         # list_non_applicable_types = [
         #     "void *",
@@ -182,6 +135,8 @@ class TemplateGenerator():
         # template_path = os.path.dirname(os.path.abspath(__file__))
         # template_path = os.path.join(template_path, confTemp.TEMPLATE_ROOT_DIR)
         template_path = confTemp.TEMPLATE_ROOT_DIR
+        if template_path is None or template_path == "":
+            template_path = os.path.join(os.path.dirname(__file__), "templates")
 
         # load all template files in the directory
         files = utils.get_all_files(template_path, "*.*", True)
@@ -191,7 +146,7 @@ class TemplateGenerator():
             templates[file] = code_text
         return templates
 
-    def create_concrete_code(self, _prototype:Prototype, _extends, _output_file, _template_main):
+    def create_concrete_code(self, _prototype:Prototype, _appendix, _output_file, _template_main):
 
         # get template rander object
         template_set = self.load_templates()
@@ -221,13 +176,15 @@ class TemplateGenerator():
                 flag_extern = False
                 break
 
+        print("APPENDIX: "+ str(_appendix))
         # rendering the template
         code = template.render(
             function=_prototype.get_driver_dict(),
             includes={"global": finder.globals, "local": finder.locals},
             initializes=self.get_initialize_stats(),
             source_file=self.SOURCE_FILE,
-            flag_extern=flag_extern
+            flag_extern=flag_extern,
+            appendix=_appendix
         )
 
         # saving the code into the file
@@ -316,8 +273,16 @@ if __name__ == "__main__":
         config.REPO_PATH = args.repository_path
 
     # Execute TemplateGenerator
-    obj = TemplateGenerator(args.source_file, args.output_dir, config, None)
-    obj.process(args.function_name)
+    gen = TemplateGenerator(args.source_file, args.output_dir, config, None)
+    test_driver_name = os.path.join(args.function_name + '.wrapping_main.c')
+    ret = gen.generate(args.function_name, test_driver_name, config.TEMPLATE_FUZZING_DRIVER)
+    print("result: %s"%ret)
+
+    # Additional code for generating inputs together
+    from InputGenerator import InputGenerator
+    input_dir = utils.makepath(args.output_dir, 'inputs')
+    InputGenerator(config.TEMPLATE_CONFIG).generate(gen.prototypes[args.function_name], input_dir)
+    print("Generated input files for {} in {}".format(args.function_name, input_dir))
 
 
 # Test code

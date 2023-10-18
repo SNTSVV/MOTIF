@@ -122,85 +122,74 @@ class CommentsParser():
 
     # List of source codes: contains all the source codes for this class
     code = None
-    doc = None
-    line_offsets = None
 
     def __init__(self, _code):
         self.code = _code
-        self.line_offsets = LineOffsets(self.code)
 
-        self.doc = C_NODE('DOC', 1, 0, _end_line=len(self.line_offsets), _end_offset=len(self.code)-1)
-
-    def parse(self):
+    def remove_comments(self):
         # parse multi-line comments
-        lastIdx = 0
+        pattern = re.compile('[^\n]')
+        codes = []
+        code = self.code
         while True:
-            start, end = self.__find_multi_comment(self.code, lastIdx)
+            start, end = self.__find_multi_comment(code, 0)
             if start == -1: break
-            # self.code = self.code[:start] + self.code[end+1:]
-            start_line = self.line_offsets.line(start)
-            end_line = self.line_offsets.line(end)
-            node = C_NODE('COMMENT', start_line, start, end_line, end)
-            self.__replace_code_with_pad(node, _pad=" ")
-            self.doc.add_child(node)
-            lastIdx = end+1
+            codes.append(code[:start])
+            codes.append(re.sub(pattern, ' ', code[start:end+1]))
+            code = code[end+1:]
+        codes.append(code)  # last code part
+        code = ''.join(codes)
 
         # parse single line comments
-        lines = self.code.split("\n")
+        lines = code.split("\n")
         for idx in range(0,len(lines)):
             start = self.__find_line_comment(lines[idx])
             if start==-1: continue
-            start = self.line_offsets[idx] + start
-            if len(self.line_offsets)-1 > idx:
-                end = self.line_offsets[idx+1] - 1
-            else:
-                end = self.line_offsets[idx]+len(lines[idx]) - 1
+            lines[idx] = lines[idx][:start] + re.sub(pattern, ' ', lines[idx][start:])
 
-            node = C_NODE('LINE_COMMENT', idx+1, start, idx+1, end)
-            self.__replace_code_with_pad(node, _pad=" ")
-            self.doc.add_child(node)
-
+        self.code = '\n'.join(lines)
         return self
 
-    def __replace_code_with_pad(self, _node:C_NODE, _pad:str):
-        start = _node.start['offset']
-        end = _node.end['offset']
-
-        letters = list(self.code)
-        for idx in range(start, end+1):
-            if letters[idx] == '\n':continue
-            letters[idx] = _pad
-        self.code = "".join(letters)
-
     def __find_multi_comment(self, _str, _start=0):
+        # 0: START, 1: STRING, 2: COMMENT, 3: END
+        # actions: (0->1) by "\"", (1->0) by "\"", (0->2) by "/*", (2->3) by "*/"
+        state = 0
         idx = _start
-        flag_str = False
         begin = -1
         end = -1
-        while idx<len(_str):
-            if begin < 0 and _str[idx]=="\"":  # if not in a multi comment and start a string..up flag
-                flag_str = not flag_str
-            elif flag_str is False and _str[idx] == "/" and _str[idx+1] == "*":
-                begin = idx
-                idx += 1
-            elif begin >= 0 and _str[idx] == "*" and _str[idx+1] == "/":
-                end = idx+1
-                break
-            idx += 1
+        while idx < len(_str):
+            if state == 0:  # in START state
+                if _str[idx] == "\"": state = 1
+                elif _str[idx] == "/" and _str[idx+1] == "*":
+                    state = 2
+                    begin = idx
+                    idx += 1     # pass the next item
+            elif state == 1:  # in STRING
+                if _str[idx] == "\"": state = 0
+            elif state == 2:  # in COMMENT
+                if _str[idx] == "*" and _str[idx+1] == "/":
+                    end = idx+1
+                    break        # move to state 3 (automatically end)
+            idx += 1     # move to the next item
         return begin, end
 
     def __find_line_comment(self, _str):
+        # condition: _str should not contain line feed ('\n')
+        # states: 0: START, 1: STRING, 2: COMMENT, 3: END
+        # actions: (0->1) by '"', (1->0) by '"', (0->2) by '//', (2->3) by automatic
+        state = 0
         idx = 0
-        flag_str = False
-        point = -1
-        while idx<len(_str):
-            if _str[idx] == "\"":  # if not in a line comment and start a string => up flag
-                flag_str = not flag_str
-            elif flag_str is False and _str[idx] == "/" and _str[idx+1] == "/":
-                point = idx
-                break
+        start = -1
+        while idx < len(_str):
+            if state == 0:  # in START state
+                if _str[idx] == "\"": state = 1
+                elif _str[idx] == "/" and _str[idx+1] == "/":
+                    start = idx   # move to state 2 (automatically end)
+                    break
+            elif state == 1: # in STRING
+                if _str[idx] == "\"": state = 0
             idx += 1
-        return point
+        return start
 
 
 class DirectiveParser():
@@ -210,7 +199,7 @@ class DirectiveParser():
 
     def __init__(self, _code):
         # self.code = _code
-        self.code = CommentsParser(_code).parse().code
+        self.code = CommentsParser(_code).remove_comments().code
         self.line_offsets = LineOffsets(_code)
 
         # initialize

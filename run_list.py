@@ -73,7 +73,7 @@ class ListRunner(object):
     def generate_commands(self, _mutants, _input_filters, _sequential=False):
         cmds = []
         # Execute multiple runs
-        if confList.RUNS is not None and confList.PHASE in ["run", "verify"]:
+        if confList.RUNS is not None and confList.PHASE in ["fuzzing", "gen"]:
             # generate multiple runs of commands for all mutants
             for idx in range(0, len(_mutants)):
                 for runID in range(1, confList.RUNS+1):
@@ -182,7 +182,7 @@ class ListRunner(object):
             dependency = self.get_dependency_string(confList.DEPENDENCY)
             if dependency is not None: cmd += " --dependency %s" % dependency
             if confList.REPORT_EMAIL is not None: cmd += " --mail-user %s" % confList.REPORT_EMAIL
-            if confList.PHASE.lower() == "run":
+            if confList.PHASE.lower() == "fuzzing":
                 # calculate request time it should be less than 2 days (48 hours)
                 multiply = math.ceil(confList.N_TASKS_PER_JOB / confList.N_PARALLELS_PER_JOB)
                 additional = max(confList.FUZZING_TIMEOUT * 0.2, 1800)  # 20% additional time or 30 mins
@@ -237,18 +237,24 @@ class ListRunner(object):
 
     def get_jobs_path(self, _previous=False):
         os.makedirs(confList.LIST_JOBID_PATH, exist_ok=True)
-        if _previous is True:
+        if _previous is True:   # get list of jobs for the previous step
             items = confList.JOB_NAME.split("-")
-            if items[-1] == "preprocess": items[-1] = ""
-            if items[-1] == "build": items[-1] = "preprocess"
-            if items[-1] == "run": items[-1] = "build"
+            # replace current phase to previous phase
+            process_order = ["", "preprocess", "build", "fuzzing", "gen"]
+            for idx in range(0, len(process_order)):
+                if items[-1] != process_order[idx]: continue
+                items[-1] = process_order[idx-1]
+                break
             job_name = "-".join(items)
         else:
             job_name = confList.JOB_NAME
 
         if job_name == "": return None
 
-        filepath = utils.makepath(confList.LIST_JOBID_PATH, job_name+".list")
+        target_list = confList.MUTANT_LIST.replace("/", "_")
+        target_list = target_list.replace(".", "")
+
+        filepath = utils.makepath(confList.LIST_JOBID_PATH, target_list+ "-"+job_name+".list")
         return filepath
 
     def store_jobIDs(self, _jobIDs):

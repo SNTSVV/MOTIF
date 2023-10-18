@@ -106,12 +106,15 @@ def makepath(*args):
                 idx -= 2
         idx += 1
 
-    if dirs[0]=="." and dirs[1] == "..":
+    if dirs[0] == "." and dirs[1] == "..":
         del dirs[0]
 
     return '/'.join(dirs)
 
 
+##################################################################
+# find fullpath from specified dir
+##################################################################
 def find_fullpath_in_dir(_dir, _target_name, _match):
     '''
     Find full path of mutant in the given directory _dir
@@ -151,6 +154,7 @@ def convert_CRLF_to_LF(_filename):
     f.close()
     return True
 
+
 def make_pure_relative_path(path):
     while True:
         if path.startswith("./"):
@@ -168,3 +172,46 @@ def make_pure_relative_path(path):
         break
 
     return path
+
+
+##################################################################
+# read a file
+##################################################################
+def readline_reverse(_file_name, _max=None):
+    count = 0
+
+    # Open file for reading in binary mode
+    with open(_file_name, 'rb') as read_obj:
+        # Move the cursor to the end of the file
+        read_obj.seek(0, os.SEEK_END)
+        # Get the current position of pointer i.e eof
+        pointer_location = read_obj.tell()
+        # Create a buffer to keep the last read line
+        buffer = bytearray()
+        # Loop till pointer reaches the top of the file
+        while pointer_location >= 0:
+            # Move the file pointer to the location pointed by pointer_location
+            read_obj.seek(pointer_location)
+            # Shift pointer location by -1
+            pointer_location = pointer_location -1
+            # read that byte / character
+            new_byte = read_obj.read(1)
+            # If the read byte is new line character then it means one line is read
+            if new_byte == b'\n':
+                # Fetch the line from buffer and yield it
+                yield buffer.decode(errors='backslashreplace')[::-1]
+                if _max is not None:
+                    count += 1
+                    if count >= _max: break
+                # Reinitialize the byte array to save next line
+                buffer = bytearray()
+            else:
+                # If last read character is not eol then add it in buffer
+                buffer.extend(new_byte)
+        # As file is read completely, if there is still data in buffer, then its the first line.
+        if len(buffer) > 0:
+            # Yield the first line too
+            yield buffer.decode()[::-1]
+            if _max is not None:
+                count += 1
+    return True

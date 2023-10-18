@@ -22,7 +22,7 @@
 #            + 3-mutant-funcs: functions that are extracted from the mutants (only mutated functions)
 #            + 4-mutant-bins: compiled results for each mutant
 #            + 5-fuzzing-<EXP_TAG_NAME>: will be stored results of fuzzing
-#            + 6-verification-<EXP_TAG_NAME>: will be stored results of 'verify' phase
+#            + 6-testcases-<EXP_TAG_NAME>: will be stored generated test cases
 #            + log-<EXP_TAG_NAME>: will be stored results of fuzzing
 
 
@@ -58,13 +58,14 @@ FUNC_DRIVER_NAME    = '1-func-drivers'      # a folder for the test drivers for 
 FUNC_INPUT_NAME     = '2-func-inputs'       # a folder for the inputs of AFL for each function
 MUTANT_FUNC_NAME    = '3-mutant-funcs'      # a folder for mutated functions extracted from mutants
 MUTANT_BIN_NAME     = '4-mutant-bins'       # a folder for the object file of mutation testing
-FUZZING_OUTPUT_NAME = '5-fuzzing'           # a folder for the outputs of AFL for each object file (and each run)
-VERIFY_OUTPUT_NAME  = '6-verification'      # a folder for the outputs of 'verify' phase for each mutant (and each run)
+FUZZING_OUTPUT_NAME = '5-fuzzing'           # a folder for the outputs of AFL for each mutant (and each run)
+TESTCASE_OUTPUT_NAME= '6-testcases'         # a folder for the outputs of 'gen' phase for each mutant (and each run)
+
 
 ##################################################################################
 # experiment parameters
 ##################################################################################
-# the maximum execution time of fuzzing
+# the maximum execution time of fuzzing (in seconds)
 FUZZING_TIMEOUT = 10
 
 # prefix when this pipeline extracts mutated function from the corresponding source code
@@ -72,6 +73,12 @@ MUTANT_FUNC_PREFIX = 'mut'
 
 # compress when the fuzzing is finished
 COMPRESS_RESULT = True
+
+# Flag determining whether to compile the automatically generated test cases
+COMPILE_TESTCASES = True
+
+# Flag determining whether MOTIF compress the generated test cases
+COMPRESS_TESTCASES = True
 
 
 ##################################################################################
@@ -102,12 +109,15 @@ FUZZER_PRINT_CRASHES = True  # Exclusive with FUZZER_PRINT_INPUTS
 # Template configurations: template paths and array settings
 ##################################################################################
 # Directory path in which the template files are located
-TEMPLATE_ROOT_DIR           = "./pipeline/templates"
+TEMPLATE_ROOT_DIR           = ""  #./pipeline/templates
 
 # Template entry filename (relative path based on the TEMPLATE_ROOT_DIR)
-TEMPLATE_FUZZING_DRIVER      = "driver_template.c.jinja2"
-TEMPLATE_PRESENTER_DRIVER   = "presenter_template.c.jinja2"
-TEMPLATE_TESTCASE_DRIVER    = "testcase_template.c.jinja2"
+TEMPLATE_FUZZING_DRIVER         = "template_fuzzing.c.jinja2"
+TEMPLATE_PRESENTER_DRIVER       = "template_presenter.c.jinja2"
+TEMPLATE_EXPECTED_DRIVER        = "template_expected.c.jinja2"
+TEMPLATE_TESTCASE_DRIVER        = "template_testcase.c.jinja2"
+TEMPLATE_FALSE_POSITIVE_DRIVER  = "template_false.c.jinja2"
+TEMPLATE_DEPENDENCY_DRIVER      = "template_dependency.c.jinja2"
 
 # Configuration options for test drivers for a function
 TEMPLATE_CONFIG = {

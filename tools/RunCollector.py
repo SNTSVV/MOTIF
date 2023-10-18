@@ -4,7 +4,7 @@
 ################################################################
 ###### general options ##############################
 #SBATCH -J COLLECTOR
-#SBATCH --time=5:00:00
+#SBATCH --time=10:00:00
 #SBATCH --mail-type=all
 ##SBATCH --mail-user=jaekwon.lee@uni.lu
 
@@ -22,31 +22,48 @@
 #SBATCH -e %j-%x.out          # Logfile: <jobid>-<jobname>.out
 #
 ###############################################################
-# SLURM: get root path of MOTIF
+# Obtain SLURM environments and PATH settings
 ###############################################################
 import os
 import sys
-if os.getenv('SLURM_JOB_ID') is not None and (
-   os.getenv('SLURM_JOB_PARTITION') != 'interactive' and os.getenv('SLURM_JOB_QOS')  != 'debug'):
-    # Executing by sbatch directly
-    import subprocess
-    print('SLURM_JOB_ID='+os.getenv('SLURM_JOB_ID') )
-    cmd = "scontrol show job " + os.getenv('SLURM_JOB_ID') + " | awk -F= '/Command=/{print $2}'"
-    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE).stdout.decode('utf-8')
-    CURRENT_FILE_PATH = result.split(" ")[0]
-    print('CURRENT_FILE_PATH='+CURRENT_FILE_PATH )
+import argparse
+import platform
+if platform.python_version().startswith("3.") is False:
+    raise Exception("Must be using Python 3")
+
+ENV = dict([(k, v) for k, v in dict(os.environ).items() if k.startswith("SLURM") or k.find("ULHPC")>=0 ])
+if "SLURM_SUBMIT_DIR" in ENV and ENV['SLURM_JOB_PARTITION'] != 'interactive':
+    ROOT_PATH = ENV["SLURM_SUBMIT_DIR"]
 else:
-    # executing the script directly
-    CURRENT_FILE_PATH = __file__
-MOTIF_PATH = os.path.abspath(os.path.join(os.path.dirname(CURRENT_FILE_PATH), '..'))
-print("MOTIF_PATH= "+MOTIF_PATH)
-sys.path.append(MOTIF_PATH)
+    ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(ROOT_PATH)
+
+###############################################################
+# SLURM: get root path of MOTIF
+###############################################################
+# import os
+# import sys
+# if os.getenv('SLURM_JOB_ID') is not None and (
+#    os.getenv('SLURM_JOB_PARTITION') != 'interactive' and os.getenv('SLURM_JOB_QOS')  != 'debug'):
+#     # Executing by sbatch directly
+#     import subprocess
+#     print('SLURM_JOB_ID='+os.getenv('SLURM_JOB_ID') )
+#     cmd = "scontrol show job " + os.getenv('SLURM_JOB_ID') + " | awk -F= '/Command=/{print $2}'"
+#     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE).stdout.decode('utf-8')
+#     CURRENT_FILE_PATH = result.split(" ")[0]
+#     print('CURRENT_FILE_PATH='+CURRENT_FILE_PATH )
+# else:
+#     # executing the script directly
+#     CURRENT_FILE_PATH = __file__
+# MOTIF_PATH = os.path.abspath(os.path.join(os.path.dirname(CURRENT_FILE_PATH), '..'))
+# print("MOTIF_PATH= "+MOTIF_PATH)
+# sys.path.append(MOTIF_PATH)
 ###############################################################
 
 
 import tarfile
 from pipeline import utils
-from tools.TarResult import TarResult
+from pipeline.fuzzer import AFLOutputTar
 
 
 class RunCollector():
@@ -149,7 +166,7 @@ class RunCollector():
             return [_mutant['ID'], _runID, "NOT_EXIST_TAR"]
 
         tar = self.get_tar_object(_location, _tar_name)
-        if isinstance(tar,TarResult) is False:
+        if isinstance(tar, AFLOutputTar) is False:
             self.print_line(_mutant, _runID, tar)  # NOT_EXIST_TAR or ERR_TAR_OPEN
             return [_mutant['ID'], _runID, tar]
 
@@ -157,6 +174,7 @@ class RunCollector():
         execs_done = tar.get_num_execs()   # get number of executions that are finished in time
         plot_data = tar.load_plot(_reverse=True, _n_lines=2)
         stats = tar.load_stats_total_log(_remake=self.RECALCULATE_STATS)
+        final_inputs = tar.list_files("./inputs/", _onlyfiles=True)
         tar.close()
         counts = stats["counts"]
         elapsed = stats["elapsed"]
@@ -174,10 +192,16 @@ class RunCollector():
             return [_mutant['ID'], _runID, "ERR_LOG_OPEN"]
         log_result = self.check_fuzzing_result_from_logs(counts, elapsed, execs_done, self.MAX_TIME)
 
+        # get actual number of inputs killing the mutants
+        counts['inputs'] = len(final_inputs)
 
         # print result
         self.print_line(_mutant, _runID, plot_result, execs_done, counts, log_result)
         return [_mutant['ID'], _runID, log_result['result']]
+
+    def get_number_of_inputs(self):
+
+        pass
 
     #################################################
     # print data out
@@ -185,7 +209,7 @@ class RunCollector():
     def print_header(self):
         header = "Mutant ID,Filename,Run ID,Initial Result, Num Execs"
         header += ",All Inputs,Crash Initial,Crash Origin,Crash Mutant,Crash Comparison,False-Positive"
-        header += ",Result,Crashed Time (s), Num Timeout,LAST_SEQ_ID"
+        header += ",Result,Crashed Time (s), Num Timeout,LAST_SEQ_ID,Num Inputs Killed"
         self.print(header)
 
     def print_line(self, mutant, runID, plot_result, execs_done=-1, counts:dict=None, log_result:dict=None):
@@ -205,6 +229,7 @@ class RunCollector():
         line += ",%.3f" % (log_result['crashed_time']if log_result is not None else -1)
         line += ",%d" % (log_result['num_timeout']if log_result is not None else 0)
         line += ",%d" % (counts['seq'] if counts is not None else 0)
+        line += ",%d" % (counts['inputs'] if counts is not None else 0)
         self.print(line)
 
     def get_tar_object(self, _location, _tar_name):
@@ -216,7 +241,7 @@ class RunCollector():
         if os.path.exists(tar_filepath) is False: return "NOT_EXIST_TAR"
 
         try:
-            tar = TarResult(tar_filepath, tar_temp_path, _use_AFL_plus=self.AFL_PLUS)
+            tar = AFLOutputTar(tar_filepath, tar_temp_path, _isAFLpp=self.AFL_PLUS)
         except tarfile.ReadError as e:
             print(e)
             print("Cannot open")
@@ -379,8 +404,6 @@ class RunCollector():
     # parse parameters
     ########################################################
     def parse_arg(self):
-        import argparse
-        import sys
         parser = argparse.ArgumentParser(description='Parameters')
         parser.add_argument('-b', dest='basePath', type=str, default=None, help='base path')
         parser.add_argument('-J', dest='expName', type=str, default=None, help='experiment name (job name)')

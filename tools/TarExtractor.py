@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from pipeline import utils
 from pipeline import Config
 import tools.utils
-from tools.TarResult import TarResult
+from pipeline.fuzzer import AFLOutputTar
 
 
 class TarExtractor():
@@ -50,7 +50,7 @@ class TarExtractor():
         else:
             dirpath = _target
         os.makedirs(dirpath, exist_ok=True)
-        obj = TarResult(_tarfile, dirpath, _dist_basenum=5000)
+        obj = AFLOutputTar(_tarfile, dirpath)
         obj.DELETE_TEMP_DIR = False
         obj.extract_tar()
         obj.close()

@@ -26,7 +26,7 @@ class Reproducer():
         config.verify_config()
 
         # proceed each phase
-        if config.PHASE in ["all", "run"]:
+        if config.PHASE in ["all", "fuzzing"]:
             self.run()
         pass
 
