@@ -76,13 +76,12 @@ $ tar -xf case_studies/ASN1.tar -C case_studies/
 By executing `run_list.py`, you can do mutation testing for all the mutants that are listed a file.
 The following is the example usage and example command for the target subjects.
 ```shell
-# ./run_list.py [-J <EXP_NAME>] [-timeout <INT>] <MUTANT_LIST> <PHASE>
+# ./run_list.py [-J <EXP_NAME>] [-timeout <INT>] <MUTANT_LIST>
 # -J <EXP_NAME>:  name of experiment and also become the name of the output directory
 # -timeout <INT>: maximum execution time of the fuzzer
 # <MUTANT_LIST>:  a text list file of target mutants
-# <PHASE>:        execution phase of MOTIF {'all', 'preprocess', 'build', 'run'}, 'all' contains all the following phases 
-$ ./run_list.py -c case_studies/MLFS/config-mlfs.py -J _exp1 --timeout 600 case_studies/MLFS/live_mutants all
-$ ./run_list.py -c case_studies/ASN1/config-asn1.py -J _exp1 --timeout 600 case_studies/ASN1/live_mutants all
+$ ./run_list.py -c case_studies/MLFS/config-mlfs.py -J _exp1 --timeout 600 case_studies/MLFS/live_mutants
+$ ./run_list.py -c case_studies/ASN1/config-asn1.py -J _exp1 --timeout 600 case_studies/ASN1/live_mutants
 ```
 
 ## Finding the experiment results
@@ -94,14 +93,14 @@ $ ls -al case_studies/MLFS/_exp1
 #   3-mutant-funcs:  functions that are extracted from the mutants (only mutated functions)
 #   4-mutant-bins:   compiled results for each mutant
 #   5-fuzzing:       stored results of fuzzing for each mutant
-#   6-verification:  stored execution results of fuzzing driver with the inputs killing a mutant
+#   6-testcases:     stored source code of test cases and their execution results  with the inputs
 #   _exp1-all.cmd:   listed all the commands that are executed by the run_list.py
 ```
 
 ## Making summary of the results
 ```shell
 # Generate the summary of the results (will be stored <OUTPUT>/summary.csv if the output path is not given)
-$ ./tools/RunCollector.py -b case_studies/MLFS -J _exp1 -m live_mutants --time 600 --plus
+$ ./tools/RunCollector.py -b case_studies/MLFS -J _exp1 --time 600 live_mutants
 
 # show the output directory
 $ ls -al case_studies/MLFS/_exp1
@@ -119,6 +118,7 @@ $ cat case_studies/MLFS/_exp1/summary.csv
 ---
 # General guideline of MOTIF
 We provide this guide for users who apply the MOTIF pipeline to a new subject.
+
 
 ## Preparing a target subject
 1. Create a subject directory
@@ -195,47 +195,63 @@ We provide this guide for users who apply the MOTIF pipeline to a new subject.
    ...
    ```
 
-## Changing the configuration for a subject
+## Preparing the configuration for a subject
 The `config.py` is the default configuration file for the pipeline.
-If you want to use the other file, you can create and provide it to the pipeline (i.e., `run.py` and `run_list.py`) using "-c" parameter.
-Please take a look at the `config.py` file and change it according to your need.
+If the file is not exist the current directory that you execute the pipeline, it will be generated automatically
+when you execute a pipeline entry point (i.e., `run.py` and `run_list.py`).
+See the commands below. Note that we just put `init` for the name of the mutant to prevent error message.
+```shell
+# Create default configuration with the default filename: config.py
+$ ./run_list.py init
+# Create default configuration with the specified filename: config-test.py
+$ ./run_list.py -c config-test.py init
+```
+
+Users can take a look at the generated `config.py` file and change variable values according to your need.
 At least you need to provide the following information correctly:
 * `EXP_BASE`: path of the `_SUBJECT` directory (relative path from the root directory of MOTIF or the absolute path)
 * `TEMPLATE_CONFIG`: template configuration for the test drivers
-* compile configurations: `INCLUDES`,  `COMPILE_SUT_CMDS`, and etc.
+* Compile configurations: `INCLUDES`,  `COMPILE_SUT_CMDS`, and etc.
+
+Note that the generated configuration has been assigned the pipeline root directory for some variables
+according to the current working environment. For example, if the pipeline root directory is `/vagrant`, 
+the variable `FUZZER_FILEPATH` will be `/vagrant/AFL++/afl-fuzz`. They may need to be changed.
 
 
 
 ## Mutation Testing (Multiple mutants in sequential)
 The `run_list.py` is the main entry point of the pipeline for mutation testing.
 The following is the simple usage of the command. This command will run fuzzing for all the mutants in the specified mutants list sequentially
-> run_list.py [-c <CONFIG_FILE>] [-J <EXP_NAME>] [-t <EXP_TAG>] [--runs <RUNS>] [--timeout <TIMEOUT>] <MUTANTS_LIST_FILE> <PHASE_NAME>
-> - MUTANTS_LIST_FILE: a file containing the list of target mutants. (e.g., `live_mutants`)
-> - PHASE_NAME: one of the following phases {'preprocess', 'build', 'run', 'all'}
+> run_list.py [-c <CONFIG_FILE>] [-J <EXP_NAME>] [-t <EXP_TAG>] [--runs <RUNS>] [--timeout <TIMEOUT>] [--phase <PHASE_NAME>] <MUTANTS_LIST_FILE>
 > - CONFIG_FILE: the path of the configuration file. Default file is `./config.py`
 > - EXP_NAME: Name of the experiment
 > - EXP_TAG: Sub name of the experiment, need to specify if you want to multiple runs with the same test drivers
 > - RUNS: Number of runs to be executed for each mutant
 > - TIMEOUT: Maximum time limit to do fuzzing
+> - PHASE_NAME: one of the following phases {'preprocess', 'build', 'fuzzing', 'gen', 'all'}
+> - MUTANTS_LIST_FILE: a file containing the list of target mutants. (e.g., `live_mutants`)
 
 Each phase will do as below:
 * `preprocess`: generate test drivers for each function that are related to the <MUTANTS_LIST_FILE>
     * If there is multiple mutants for a function, then it generates one set of test drivers (fuzzing drivers)
 * `build`: generate inputs and executable SUT for all mutants listed in the <MUTANTS_LIST_FILE>
-* `run`: execute fuzzing for all mutants listed in the <MUTANTS_LIST_FILE>
-* `verify`: showing execution results of fuzzing drivers with inputs killing a mutant
-* `all`: execute fuzzing all the phases at once
+* `fuzzing`: execute fuzzing for all mutants listed in the <MUTANTS_LIST_FILE>
+* `gen`: showing execution results of fuzzing drivers with inputs killing a mutant
+* `all`: execute fuzzing all the phases at once (default value)
 
-You can execute the pipeline as follows:
+
+Example commands for executing the pipeline:
 ```shell
-$ ./run_list.py case_studies/_SUBJECT/live_mutants preprocess
-$ ./run_list.py case_studies/_SUBJECT/live_mutants build
-$ ./run_list.py --timeout 600 case_studies/_SUBJECT/live_mutants run
-or 
-$ ./run_list.py --timeout 600 case_studies/_SUBJECT/live_mutants all
+$ ./run_list.py --timeout 600 case_studies/_SUBJECT/live_mutants
 
-# If users want to conduct multiple experiments for the same mutant, users can use --runs option as below:
-$ ./run_list.py --timeout 600 --runs 10 case_studies/_SUBJECT/live_mutants all
+# If users want to conduct each phase separately
+$ ./run_list.py --phase preprocess case_studies/_SUBJECT/live_mutants
+$ ./run_list.py --phase build case_studies/_SUBJECT/live_mutants
+$ ./run_list.py --phase fuzzing --timeout 600 case_studies/_SUBJECT/live_mutants
+$ ./run_list.py --phase gen --timeout 600 case_studies/_SUBJECT/live_mutants
+
+# If users want to conduct multiple experiments for the same mutant, the option --runs can use as below: 
+$ ./run_list.py --timeout 600 --runs 10 case_studies/_SUBJECT/live_mutants
 ```
 
 
@@ -247,10 +263,10 @@ The parameters of the `run.py` is similar to `run_list.py` as they share almost 
 The parameter `--runID` is used for indicating an experiment among the multiple runs of the experiment for a mutant.
 This parameter is used when the `run_list.py` uses `--runs` parameter.
 ```shell
-# ./run.py [--runID <int>] [--timeout <int>] <mutant_name> <input_filter> <phase>
-$ ./run.py time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
-$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
-$ ./run.py --runID 1 --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
+# ./run.py [--runID <int>] [--timeout <int>] [--phase <PHASE_NAME>] <mutant_file>
+$ ./run.py --phase preprocess time.mut.89.2_1_3.LCR.time_to_timestamp.c
+$ ./run.py --phase preprocess --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c
+$ ./run.py --phase preprocess --runID 1 --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c
 ```
 
 
@@ -304,6 +320,8 @@ For example, for the `motif_default.sif`, you can set as follows:
 ```shell
 SINGULARITY_IMAGE = "containers/motif_default.sif"
 ```
+Note that you need to set the value as absolute path if you want to execute the pipeline in any place.
+
 
 ## Installing requirements (minimum requirements to execute `./run_list.py`)
 These requirements would have been satisfied if you installed the MOTIF requirements.
@@ -320,18 +338,17 @@ pip3 install psutil
 ```
 
 
-
 ## Executing MOTIF
 To make MOTIF work in the specified singularity image, you need to use `--singularity` flag for 
 `run_list.py`. The script will then execute its work by calling `run.py` inside of the singularity image. 
 See the following examples:
 ```shell
-$ ./run_list.py --singularity --timeout 600 case_studies/_SUBJECT/live_mutants all
+$ ./run_list.py --singularity --timeout 600 case_studies/_SUBJECT/live_mutants
 
 # The above command will call `run.py` for each mutant in the `live_mutants` in the singularity image as below:
-# ./run.py --timeout 600 <mutant_1> all
-# ./run.py --timeout 600 <mutant_2> all
-# ./run.py --timeout 600 <mutant_3> all
+# ./run.py --timeout 600 <mutant_1>
+# ./run.py --timeout 600 <mutant_2>
+# ./run.py --timeout 600 <mutant_3>
 # ...
 ```
 
@@ -341,11 +358,12 @@ See the following examples:
 ```shell
 $ singularity shell --bind ./:/expr -H /expr ./containers/motif_default.sif
 [singularity]~/$ cd /expr
-[singularity]/expr$ ./run.py time.mut.89.2_1_3.LCR.time_to_timestamp.c A preprocess
-[singularity]/expr$ ./run.py time.mut.89.2_1_3.LCR.time_to_timestamp.c A build
-[singularity]/expr$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A run
+[singularity]/expr$ ./run.py --phase preprocess time.mut.89.2_1_3.LCR.time_to_timestamp.c
+[singularity]/expr$ ./run.py --phase build time.mut.89.2_1_3.LCR.time_to_timestamp.c
+[singularity]/expr$ ./run.py --phase fuzzing --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c
+[singularity]/expr$ ./run.py --phase gen     --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c
 or 
-[singularity]/expr$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c A all
+[singularity]/expr$ ./run.py --timeout 600 time.mut.89.2_1_3.LCR.time_to_timestamp.c
 ```
 
 
@@ -367,16 +385,16 @@ and request a job to the SLURM by providing `launcher.sh` (located in the direct
 , which is a script dedicated for SLURM job scheduler to execute sequentially each line of <command_file>.
 See the example below:
 ```shell
-# run_list.py [--hpc] [--timeout <int>] <mutants_list_file> <phase>
-[HPC]~/<workpath>$ ./run_list.py --hpc --runs 2 --timeout 100 case_studies/_SUBJECT/live_mutants all
+# run_list.py [--hpc] [--timeout <int>] <mutants_list_file>
+[HPC]~/<workpath>$ ./run_list.py --hpc --runs 2 --timeout 100 case_studies/_SUBJECT/live_mutants
 
 #### <command_file>
-#./run.py --runID 1 --timeout 100 time.mut.87.3_2_1.ICR.time_to_timestamp.c A all
-#./run.py --runID 2 --timeout 100 time.mut.87.3_2_1.ICR.time_to_timestamp.c A all
-#./run.py --runID 1 --timeout 100 time.mut.88.2_4_2.ROD.time_to_timestamp.c A all
-#./run.py --runID 2 --timeout 100 time.mut.88.2_4_2.ROD.time_to_timestamp.c A all
-#./run.py --runID 1 --timeout 100 time.mut.89.2_1_3.LCR.time_to_timestamp.c A all
-#./run.py --runID 2 --timeout 100 time.mut.89.2_1_3.LCR.time_to_timestamp.c A all
+#./run.py --runID 1 --timeout 100 time.mut.87.3_2_1.ICR.time_to_timestamp.c
+#./run.py --runID 2 --timeout 100 time.mut.87.3_2_1.ICR.time_to_timestamp.c
+#./run.py --runID 1 --timeout 100 time.mut.88.2_4_2.ROD.time_to_timestamp.c
+#./run.py --runID 2 --timeout 100 time.mut.88.2_4_2.ROD.time_to_timestamp.c
+#./run.py --runID 1 --timeout 100 time.mut.89.2_1_3.LCR.time_to_timestamp.c
+#./run.py --runID 2 --timeout 100 time.mut.89.2_1_3.LCR.time_to_timestamp.c
 # launcher.sh will execute them sequentially
 ```
 
@@ -391,10 +409,11 @@ As like `launcher.sh`,  `parallel.sh` is also a script dedicated for SLURM job s
 The `parallel.sh` will call `launcher.sh`  with the line number of <command_file>.
 See the following examples:
 ```shell
-# run_list.py [--parallel] [--runs <int>] [--timeout <int>] <mutants_list_file> <phase>
-[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 case_studies/_SUBJECT/live_mutants preprocess
-[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 case_studies/_SUBJECT/live_mutants build
-[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 case_studies/_SUBJECT/live_mutants run
+# run_list.py [--parallel] [--runs <int>] [--timeout <int>] [--phase <PHASE_NAME>] <mutants_list_file>
+[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 --phase preprocess case_studies/_SUBJECT/live_mutants
+[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 --phase build case_studies/_SUBJECT/live_mutants
+[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 --phase fuzzing case_studies/_SUBJECT/live_mutants
+[HPC]~/<workpath>$ ./run_list.py --parallel --runs 10 --timeout 10000 --phase gen case_studies/_SUBJECT/live_mutants
 ```
 > We recommend you execute each phase separately with `--parallel` flag, because it may cause a collision issue.
 > For example, assume that you have 10 mutants for a function under test.
@@ -403,4 +422,18 @@ See the following examples:
 > However, with `all` phase flag, MOTIF will generate a set of fuzzing drivers for each mutant regardless the mutated function
 > and share the same location to store them.
 > This may lead to a collision in that when a node builds executable fuzzing drivers, the other node overwrites the fuzzing driver in the middle.
-> To prevent this issue, please do not use `all` phase flag. 
+> To prevent this issue, please do not use `all` phase flag.
+
+
+
+## Install MOTIF into the system (supporting global execution)
+If you install MOTIF, you can execute it in everywhere with keyword `motif` for a mutant or `motif-list` for the list of mutants
+```shell
+# If you want to install motif globally, use the following command
+#     (-e option makes the specified directory to be installed directory)
+$ pip install -e ./ 
+# If you want to install motif for the current user, use the following command
+$ pip install -e ./ --user
+# in this case, adding PATH maybe required
+$ export PATH=$HOME/.local/bin:$PATH
+```
