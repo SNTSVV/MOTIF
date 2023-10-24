@@ -3,6 +3,7 @@ import os
 import sys
 import shutil
 import argparse
+import re
 
 if __package__ is None or __package__ == "":
     import utils
@@ -117,11 +118,64 @@ class Config(utils.dotdict):
     def load_default_config(_config_file):
         # check the config file exists
         if os.path.exists(_config_file) is False:
-            sample_config = os.path.join(os.path.dirname(__file__), "_config.py")
-            shutil.copy(sample_config, _config_file)
+            Config.make_default_configuration(_config_file)
             utils.error_exit("This pipeline requires config file. \nPlease take a look and update the auto generated config file: %s" % _config_file)
 
         return utils.load_module(_config_file)
+
+    @staticmethod
+    def make_default_configuration(_filename):
+        '''
+        copy template config.py into the target location
+        some paths will be changed, see the variable var_list
+        :param _filename:
+        :return:
+        '''
+        var_list = [
+            "SINGLE_RUN_FILE",
+            "MULTI_RUN_FILE",
+            "SLURM_PARALLEL_EXECUTOR",
+            "SLURM_SINGLE_EXECUTOR",
+            # TODO:: the below may need to be removed at the deploy version
+            "FUZZER_FILEPATH",
+            "COMPILER_FILEPATH",
+            "CPP_COMPILER_FILEPATH",
+            "SINGULARITY_FILE",
+        ]
+
+        template_config = os.path.join(os.path.dirname(__file__), "_config.py")
+        # shutil.copy(template_config, _config_file)
+
+        # Load file
+        with open(template_config, "r") as f:
+            codelines = f.readlines()
+
+        # update variables
+        library_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+        # replace values
+        search_pattern = r'^(\s*%s\s*=\s*)'  # cannot detect \" character, so only search the variable
+        # sub_pattern = r'^(\s*%s\s*=\s*)[\'"](.*)[\'"]'
+        # repl_pattern = r'\1="%s/\2"' % library_root
+        for idx in range(0, len(codelines)):
+            for variable in var_list:
+                match = re.search(search_pattern%variable, codelines[idx])
+                if match is None: continue
+                split_idx = match.span(1)[1]   # first match, end point
+                var_part = codelines[idx][:split_idx]
+                value = codelines[idx][split_idx:].strip()    # remove '\n'
+                value = value.replace("\"", "")
+                value = value.replace("\'", "")
+                if value.startswith("/"): continue
+
+                # current path assign if the value is relative path
+                value = utils.makepath(library_root, value)
+                codelines[idx] = '%s"%s"\n' % (var_part, value)
+
+        # output file
+        with open(_filename, "w") as f:
+            f.writelines(codelines)
+        return True
 
     def update_config_with_params(self, _params):
         '''
