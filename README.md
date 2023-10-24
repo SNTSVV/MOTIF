@@ -68,10 +68,10 @@ We provide the subject data: ASN1 and MLFS, which are open-source. Each subject 
 The commands below will download the data and extract them into the `case_studies` directory.
 ```shell
 # for MLFS
-$ wget -O case_studies/MLFS.tar https://figshare.com/ndownloader/files/41974686
+$ wget -O case_studies/MLFS.tar https://figshare.com/ndownloader/files/42890428
 $ tar -xf case_studies/MLFS.tar -C case_studies/
 # for ASN1
-$ wget -O case_studies/ASN1.tar https://figshare.com/ndownloader/files/41974683
+$ wget -O case_studies/ASN1.tar https://figshare.com/ndownloader/files/42890425
 $ tar -xf case_studies/ASN1.tar -C case_studies/
 ```
 
