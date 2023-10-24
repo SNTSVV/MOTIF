@@ -79,7 +79,7 @@ class RunCollector():
             _basePath = params.basePath
             _expName = params.expName
             _tagName = params.tagName
-            _mutantsPath = params.mutantsPath
+            _mutantsPath = params.MUTANT_LIST
             _outputPath = params.outputPath
             _max_time = params.MAX_TIME
             _max_run = params.MAX_RUN
@@ -405,16 +405,16 @@ class RunCollector():
     ########################################################
     def parse_arg(self):
         parser = argparse.ArgumentParser(description='Parameters')
-        parser.add_argument('-b', dest='basePath', type=str, default=None, help='base path')
+        parser.add_argument('-b', dest='basePath', type=str, default="./", help='base path')
         parser.add_argument('-J', dest='expName', type=str, default=None, help='experiment name (job name)')
         parser.add_argument('-t', dest='tagName', type=str, default=None, help='sub dir pattern')
         parser.add_argument('-o', dest='outputPath', type=str, default=None, help='relative path from the base path')
-        parser.add_argument('-m', dest='mutantsPath', type=str, default=None, help='target mutant file to fuzz; relative path from the base path')
         parser.add_argument('--time', dest='MAX_TIME', type=int, default=None, help='the maximum execution time of AFL fuzzing')
         parser.add_argument('--runs', dest='MAX_RUN', type=int, default=0, help='the maximum number of runs')
         parser.add_argument('--hpc', dest='HPC', action='store_true', help='(boolean) working in HPC (working in /tmp folder')
         parser.add_argument('--plus', dest='AFLplus', action='store_true', help='(boolean) the result made by AFL plus')
         parser.add_argument('--stats', dest='calculateStats', action='store_true', help='(boolean) the result made by AFL plus')
+        parser.add_argument("MUTANT_LIST", metavar="<mutant-list-file>", help="target mutant list file to fuzz")
 
         # parameter parsing
         args = sys.argv[1:]  # remove executed file
@@ -425,7 +425,7 @@ class RunCollector():
         if args.expName is None or len(args.expName)==0:
             parser.print_help()
             exit(1)
-        if args.mutantsPath is None or len(args.mutantsPath)==0:
+        if args.MUTANT_LIST is None or len(args.MUTANT_LIST)==0:
             parser.print_help()
             exit(1)
 
@@ -433,6 +433,7 @@ class RunCollector():
             parser.print_help()
             exit(1)
 
+        args.AFLplus = True
         return args
 
 
