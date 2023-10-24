@@ -17,6 +17,7 @@ $ git clone https://github.com/SNTSVV/MOTIF.git MOTIF
 * `config.py`: default configuration file
 * `run.py`: main entry point for a mutant
 * `run_list.py`: main entry point for a list of mutants
+* `setup.py`: script for installing MOTIF 
 * `Vagrantfile`: configuration file for the vagrant box (for Windows and Mac OS users)
 
 
@@ -40,6 +41,8 @@ If you have an issue with installing the working environment,
 please use the Singularity image that we provided
 following [the section for Singualrity](#working-with-singularity)
 
+Additionally, users may need more packages for compiling their software under test.
+For the full specifications, please take a look at the `*.def` files in the directory `containers`
 
 
 ## Preparing a fuzzer (AFL++)
@@ -93,7 +96,7 @@ $ ls -al case_studies/MLFS/_exp1
 #   3-mutant-funcs:  functions that are extracted from the mutants (only mutated functions)
 #   4-mutant-bins:   compiled results for each mutant
 #   5-fuzzing:       stored results of fuzzing for each mutant
-#   6-testcases:     stored source code of test cases and their execution results  with the inputs
+#   6-testcases:     stored test cases with the inputs killing mutants and assertions
 #   _exp1-all.cmd:   listed all the commands that are executed by the run_list.py
 ```
 
@@ -426,7 +429,10 @@ See the following examples:
 
 
 
-## Install MOTIF into the system (supporting global execution)
+
+---
+---
+# Install MOTIF into the system (supporting global execution)
 If you install MOTIF, you can execute it in everywhere with keyword `motif` for a mutant or `motif-list` for the list of mutants
 ```shell
 # If you want to install motif globally, use the following command
@@ -437,3 +443,5 @@ $ pip install -e ./ --user
 # in this case, adding PATH maybe required
 $ export PATH=$HOME/.local/bin:$PATH
 ```
+
+

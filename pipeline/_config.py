@@ -75,9 +75,9 @@ COMPRESS_TESTCASES = True
 ##################################################################################
 # parameters for fuzzing tool
 ##################################################################################
-FUZZER_FILEPATH   = 'AFL++/afl-fuzz'
-COMPILER_FILEPATH = 'AFL++/afl-gcc'
-CPP_COMPILER_FILEPATH = 'AFL++/afl-g++'
+FUZZER_FILEPATH   = './AFL++/afl-fuzz'
+COMPILER_FILEPATH = './AFL++/afl-gcc'
+CPP_COMPILER_FILEPATH = './AFL++/afl-g++'
 FUZZER_ENVS = {
     "AFL_NO_AFFINITY":1,
     "AFL_NO_UI":1,
@@ -259,7 +259,7 @@ LOG_FILE_NAME = "%j-%x.out"
 LIST_JOBID_PATH = "__submitted_jobs__"
 
 # singularity image file that the pipeline will be executed
-SINGULARITY_FILE = "containers/motif_default.sif"
+SINGULARITY_FILE = "./containers/motif_default.sif"
 
 
 
@@ -281,8 +281,8 @@ SBATCH_PARAMETERS = ""
 ##################################################################################
 PYTHON_CMD="python3"
 # PYTHON_CMD="./venv/bin/python3"
-SINGLE_RUN_FILE = "run.py"
-MULTI_RUN_FILE = "run_list.py"
-SLURM_PARALLEL_EXECUTOR="scripts/HPC/parallel.sh"
-SLURM_SINGLE_EXECUTOR="scripts/HPC/launcher.sh"
+SINGLE_RUN_FILE = "./run.py"
+MULTI_RUN_FILE = "./run_list.py"
+SLURM_PARALLEL_EXECUTOR="./scripts/HPC/parallel.sh"
+SLURM_SINGLE_EXECUTOR="./scripts/HPC/launcher.sh"
 

@@ -219,7 +219,7 @@ def readline_reverse(_file_name, _max=None):
 
 
 ##################################################################
-# read a file
+# change file attributes to be executable
 ##################################################################
 def make_executable(_file_name):
     st = os.stat(_file_name)
