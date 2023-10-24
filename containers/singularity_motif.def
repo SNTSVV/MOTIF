@@ -8,7 +8,7 @@ From: ubuntu:18.04
     # scripts to execute after downloading the specified docker image file
     # install dependencies for MOTIF
     apt update
-    apt install -y gcc g++ python python3 python3-pip git vim
+    apt install -y gcc g++ python python3 python3-pip git vim gdb
 
     # python-pip upgrade
     pip3 install --upgrade pip

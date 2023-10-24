@@ -16,13 +16,13 @@ TOPDIR=$(dirname $(readlink -f $0))
 if [ $(id -u) -eq 0 ]; then
     # already sudo
     apt-get update -y
-    apt-get install -y python python3 python3-pip git vim
+    apt-get install -y python python3 python3-pip git vim gdb
 
     # Upgrade pip version
     pip3 install --upgrade pip
 else
     sudo apt-get update -y
-    sudo apt-get install -y python python3 python3-pip git vim
+    sudo apt-get install -y python python3 python3-pip git vim gdb
 
     # Upgrade pip version
     sudo pip3 install --upgrade pip
