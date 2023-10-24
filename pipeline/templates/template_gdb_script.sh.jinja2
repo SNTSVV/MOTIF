@@ -1,0 +1,69 @@
+#!/bin/bash -l
+
+error_exit() {
+    echo $1
+    echo "USAGE:"
+    echo "    $0 <TARGET_OBJECTIVE_FILE>"
+    echo "    e.g.) $0 testcases/0000000000/0000000001.obj"
+    exit 1
+}
+
+if [ $# -ne 1 ]; then
+    error_exit "NOT provided target executable file"
+fi
+
+TARGET=$1
+WORKDIR=$(dirname $TARGET)
+
+if [[ ! -f "$TARGET" ]]; then
+    error_exit "The target is not a file: $TARGET"
+fi
+
+echo '
+set pagination off
+# set logging file gdb.output
+# set logging on
+
+break {{ appendix.breakpoints.before }}
+    command 1
+    print "<before>"
+{%     for param in function.params %}
+{%     set param_name =  param.name %}
+{%     if appendix.prefix != None and appendix.prefix != "" %}
+{%         set param_name =  appendix.prefix +"_"+ param.name %}
+{%     endif %}
+    print "{{ param_name }}="
+    print {{ param_name }}
+{%     endfor %}
+    continue
+end
+
+
+break {{ appendix.breakpoints.after }}
+    command 2
+    print "<after>"
+{#{%     set param_name =  appendix.prefix+"_"+ param.name if prefix != "" else param.name %}#}
+{%     for param in function.params %}
+{%     set param_name =  param.name %}
+{%     if appendix.prefix != None and appendix.prefix != "" %}
+{%         set param_name =  appendix.prefix +"_"+ param.name %}
+{%     endif %}
+    print "{{ param_name }}="
+    print {{ param_name }}
+{%     endfor %}
+{% if "void" != function.returns.type %}
+    print "{{ appendix.return_prefix }}_return="
+    print {{ appendix.return_prefix }}_return
+{% endif %}
+    continue
+end
+
+run
+
+# set logging off
+quit
+' > ${WORKDIR}/scripting.gdb
+
+if [[ "$?" == "0" ]]; then
+  gdb -x ${WORKDIR}/scripting.gdb ${TARGET} | grep -E -i '^\$[0-9]+ ='
+fi

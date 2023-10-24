@@ -117,6 +117,7 @@ TEMPLATE_PRESENTER_DRIVER       = "template_presenter.c.jinja2"
 TEMPLATE_EXPECTED_DRIVER        = "template_expected.c.jinja2"
 TEMPLATE_TESTCASE_DRIVER        = "template_testcase.c.jinja2"
 TEMPLATE_FALSE_POSITIVE_DRIVER  = "template_false.c.jinja2"
+TEMPLATE_TESTCASE_GDB           = "template_gdb_script.sh.jinja2"
 TEMPLATE_DEPENDENCY_DRIVER      = "template_dependency.c.jinja2"
 
 # Configuration options for test drivers for a function

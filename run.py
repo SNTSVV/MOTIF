@@ -8,6 +8,7 @@ import traceback
 if platform.python_version().startswith("3.") is False:
     raise Exception("Must be using Python 3")
 
+import re
 import math
 from pipeline.FunctionExtractor import FunctionExtractor
 from pipeline.TemplateGenerator import TemplateGenerator
@@ -239,16 +240,24 @@ class Runner(object):
             print("Done")
             result_generated = True
 
+        # create TemplateGenerator
+        include_txt = compile.get_gcc_params_include(config.INCLUDES, config.REPO_PATH)
+        compilation_cflags = config.SUT_COMPILE_FLAGS+" " + include_txt
+        generator = TemplateGenerator(source_file, config, compilation_cflags)
+
         # generate test cases
         testcase_dir = utils.makepath(testcase_output, "testcases")
+        gdb_script_path = utils.makepath(testcase_output, "gdb.sh")
+
         print("Generate test cases ...")
-        ninputs, failed = self.generate_testcases(source_file, temp_output, testcase_dir)
-        print("Generated test cases: %d / %d" % (ninputs-failed, ninputs))
+        ninputs, failed = self.generate_testcases(generator, temp_output, testcase_dir)
+        self.generate_gdb_script(generator, testcase_dir, gdb_script_path)
+        print("Generated test cases: %d / %d" % (ninputs - failed, ninputs))
         if failed > 0:
             print("Failed to generate test cases!")
 
         # For the successfully generated test cases
-        if ninputs-failed > 0:
+        if ninputs - failed > 0:
             result_generated = True
             if config.COMPILE_TESTCASES is True:
                 print("Compile test cases ...")
@@ -652,7 +661,7 @@ class Runner(object):
     ################################################
     # [GEN] generating test cases
     ################################################
-    def generate_testcases(self, _src_file, _working_dir, _testcase_dir):
+    def generate_testcases(self, _generator, _working_dir, _testcase_dir):
         '''
         execute AFL fuzzing
         Working directory is the same as the location of run.py
@@ -671,11 +680,6 @@ class Runner(object):
         # path settings
         expected_driver_file = path.get_executable_driver_path(path.EXPECTED_PREFIX)
         utils.prepare_directory(_testcase_dir)
-
-        # create TemplateGenerator
-        include_txt = compile.get_gcc_params_include(config.INCLUDES, config.REPO_PATH)
-        compilation_cflags = config.SUT_COMPILE_FLAGS+" " + include_txt
-        generator = TemplateGenerator(_src_file, config, compilation_cflags)
 
         # generate test cases
         utils.prepare_directory(afl.expected_dir_path)
@@ -703,7 +707,7 @@ class Runner(object):
                 utils.prepare_directory(os.path.dirname(testcase_path))
 
                 # generate "TEST CASE"
-                ret = generator.generate(config.MUTANT.func, testcase_path, config.TEMPLATE_TESTCASE_DRIVER, _appendix=data)
+                ret = _generator.generate(config.MUTANT.func, testcase_path, config.TEMPLATE_TESTCASE_DRIVER, _appendix=data)
                 if ret is False: num_failed += 1
             except Exception as e:
                 traceback.print_exc()
@@ -786,6 +790,93 @@ class Runner(object):
         f.close()
         binarylist = list(data)
         return binarylist
+
+    def find_breakpoints(self, _filepath, _func_name):
+        '''
+        find break points of the test case
+        :param _filepath:
+        :param _func_name:
+        :return:
+        '''
+        # load file
+        f = open(_filepath)
+        codelines = f.readlines()
+        f.close()
+
+        re_main = re.compile("\s+main\(\s*int")
+        re_function = re.compile(_func_name+"\(")
+        re_assertion = re.compile("\s*assert\(")
+
+        before = 0
+        after = 0
+
+        # get into the main function
+        idx = 0
+        while idx < len(codelines):
+            # if line.find("main(int argc,") == 0:
+            if re_main.search(codelines[idx]) is None:
+                idx += 1
+                continue
+            break
+
+        # find the line before executing function under test
+        while idx < len(codelines):
+            # if line.find(_func_name+"(") == 0: continue
+            if re_function.search(codelines[idx]) is None:
+                idx += 1
+                continue
+            before = idx   # since idx starts 0, the line number for "before" is just idx
+            break
+
+        # find the line after executing function under test
+        while idx < len(codelines):
+            # if line.find("assert(") == 0: continue
+            if re_assertion.search(codelines[idx]) is None:
+                idx += 1
+                continue
+            after = idx + 1   # since idx starts 0, the line number for "after" is idx + 1
+            break
+
+        return {"before":before, "after": after}
+
+    def generate_gdb_script(self, _generator:TemplateGenerator, _testcase_dir, _output_path):
+        '''
+        execute AFL fuzzing
+        Working directory is the same as the location of run.py
+        :return:
+        '''
+        # find target files
+        files = utils.get_all_files(_testcase_dir, "*"+ config.MUTANT.ext, _only_files=True)
+        if len(files) == 0: return False
+
+        breakpoints = self.find_breakpoints(files[0], config.MUTANT.func)
+        if breakpoints["before"] == 0:
+            print("Failed to find breakpoints")
+            return False
+
+        # generate script
+        utils.prepare_directory(os.path.dirname(_output_path))
+        appendix = {
+            "breakpoints": breakpoints,
+            "prefix": "",
+            "return_prefix": "function"
+        }
+
+        ret = False
+        try:
+            ret = _generator.generate(config.MUTANT.func,
+                                     _output_path,
+                                     config.TEMPLATE_TESTCASE_GDB,
+                                     _appendix=appendix)
+            if ret is False:
+                print('Error to generate gdb script')
+
+            utils.make_executable(_output_path)
+
+        except Exception as e:
+            traceback.print_exc()
+
+        return ret
 
 
 if __name__ == "__main__":

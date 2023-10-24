@@ -1,5 +1,6 @@
 import os
 import sys
+import stat
 import importlib
 import glob
 from . import error
@@ -214,4 +215,13 @@ def readline_reverse(_file_name, _max=None):
             yield buffer.decode()[::-1]
             if _max is not None:
                 count += 1
+    return True
+
+
+##################################################################
+# read a file
+##################################################################
+def make_executable(_file_name):
+    st = os.stat(_file_name)
+    os.chmod(_file_name, st.st_mode | stat.S_IEXEC)
     return True

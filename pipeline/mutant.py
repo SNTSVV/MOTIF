@@ -21,6 +21,7 @@ class Mutant(dotdict):
 
         pure_filename, ext = os.path.splitext(obj['filename'])   # mutant name (without ext)
         obj['name'] = pure_filename
+        obj['ext'] = ext
         items = obj['name'].split(".")
         obj['src_path'] = obj['dir_path'] + ext    # src/path/to/codefile.c  in $REPOS
         obj['src_name']  = items[0] + ext          # codefile.c
@@ -39,6 +40,7 @@ class Mutant(dotdict):
         txt += "  - TEST_MUTANT           : %s\n" % self.fullpath
         txt += "  - Mutant dir path       : %s\n" % self.dir_path
         txt += "  - Mutant name           : %s\n" % self.name
+        txt += "  - Source ext            : %s\n" % self.ext
         txt += "  - Source code file      : %s\n" % self.src_path
         txt += "  - Function name         : %s\n" % self.func
         txt += "  - Mutation type         : %s\n" % self.type
