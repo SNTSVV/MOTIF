@@ -26,7 +26,7 @@ $ git clone https://github.com/SNTSVV/MOTIF.git MOTIF
 It requires installing the following Linux and Python libraries.
 ```shell
 sudo apt update -y
-sudo apt install -y gcc g++ python python3 python3-pip   # Python 3.6.9
+sudo apt install -y gcc g++ gdb python python3 python3-pip  # Python 3.6.9 on the Ubuntu 18.04
 
 # python-pip upgrade
 sudo pip3 install --upgrade pip
